@@ -157,10 +157,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               memo: !!document.querySelector('#memoBody'),
               storage: (() => { try { localStorage.setItem('t','1'); return true; } catch (e) { return false; } })(),
               bodyFont: getComputedStyle(document.body).fontFamily,
-              inputFont: getComputedStyle(document.querySelector('#in_names')).fontFamily,
-              memoFont: getComputedStyle(document.querySelector('#memoBody')).fontFamily,
-              spinner: getComputedStyle(document.querySelector('#in_winnerCount')).appearance,
-              hasKoreanFace: document.fonts.check('12pt "Apple SD Gothic Neo"')
+              hasKoreanFace: document.fonts.check('12pt "Apple SD Gothic Neo"'),
+              viewport: innerWidth,
+              panelRight: Math.round(document.querySelector('#settings').getBoundingClientRect().right),
+              panelWidth: Math.round(document.querySelector('#settings').getBoundingClientRect().width),
+              memoLeft: Math.round(document.querySelector('#memo').getBoundingClientRect().left),
+              overlaps: document.querySelector('#settings').getBoundingClientRect().right >
+                        document.querySelector('#memo').getBoundingClientRect().left
             })
             """
             self.webView.evaluateJavaScript(probe) { result, error in

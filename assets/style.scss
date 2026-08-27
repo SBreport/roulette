@@ -164,6 +164,9 @@ div.copyright a {
   padding: 10px;
   z-index: 999;
   min-width: 50%;
+  // 내용에 따라 오른쪽으로 늘어나는 패널이라, 메모 패널을 덮지 않도록 한계를 준다.
+  // 메모를 접으면 --memo-w 가 0 이 되어 화면 끝까지 쓸 수 있다.
+  max-width: calc(100% - var(--memo-w) - 2rem);
 
   display: flex;
   visibility: visible;
