@@ -215,8 +215,95 @@
       applyWinnerSelection();
     });
 
-    window.roulette.addEventListener('goal', () => {
+    // ------------------------------------------------------------ 메모 패널
+    const memoBody = document.querySelector('#memoBody');
+    const btnMemoResult = document.querySelector('#btnMemoResult');
+    let lastResult = null;
+    let roundNo = 0;
+
+    // 줄마다 접두사를 보고 class 만 바꾼다. 텍스트 노드를 다시 만들지 않으므로
+    // 한글 조합 중에 호출돼도 입력이 깨지지 않는다.
+    const restyleMemo = () => {
+      memoBody.childNodes.forEach((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const text = node.textContent || '';
+        node.className = text.startsWith('## ') ? 'memo-h2' : text.startsWith('# ') ? 'memo-h1' : '';
+      });
+    };
+
+    // 빈 줄 요소가 개행 두 개로 세어지는 경우가 있어 연속 개행을 하나로 눌러 둔다.
+    const memoText = () => memoBody.innerText.replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+
+    const appendMemoLines = (lines) => {
+      const lastLine = memoBody.lastElementChild ? memoBody.lastElementChild.textContent.trim() : '';
+      if (memoText().trim() !== '' && lastLine !== '') lines = ['', ...lines];
+      lines.forEach((line) => {
+        const div = document.createElement('div');
+        if (line === '') {
+          div.appendChild(document.createElement('br'));
+        } else {
+          div.textContent = line;
+        }
+        memoBody.appendChild(div);
+      });
+      restyleMemo();
+      memoBody.scrollTop = memoBody.scrollHeight;
+    };
+
+    const rememberResult = (detail) => {
+      const names = (detail && detail.winners) || (detail && detail.winner ? [detail.winner] : []);
+      if (names.length === 0) return;
+      roundNo++;
+      // 당첨 구간의 첫 순위. 뒤에서 N명이면 1위가 아니라 중간 순위부터 시작한다.
+      const firstRank = window.options.winningRank + 2 - names.length;
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      lastResult = [`## ${roundNo}회차 · ${time}`, ...names.map((name, i) => `${firstRank + i}위 ${name}`)];
+      btnMemoResult.disabled = false;
+    };
+
+    memoBody.addEventListener('input', restyleMemo);
+
+    btnMemoResult.disabled = true;
+    btnMemoResult.addEventListener('click', () => {
+      if (!lastResult) return;
+      appendMemoLines(lastResult);
+    });
+
+    // clipboard API 가 권한에 막히는 환경이 있어 execCommand 로 한 번 더 시도한다.
+    const copyToClipboard = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(area);
+        return copied;
+      }
+    };
+
+    document.querySelector('#btnMemoCopy').addEventListener('click', async () => {
+      const text = memoText();
+      if (!text.trim()) {
+        simpleToast('메모가 비어 있습니다');
+        return;
+      }
+      simpleToast((await copyToClipboard(text)) ? '메모를 복사했습니다' : '복사에 실패했습니다');
+    });
+
+    document.querySelector('#btnMemoToggle').addEventListener('click', () => {
+      document.documentElement.classList.toggle('memo-collapsed');
+    });
+
+    window.roulette.addEventListener('goal', (e) => {
       ready = false;
+      rememberResult(e.detail);
       setTimeout(() => {
         document.querySelector('#settings').classList.remove('hide');
       }, 3000);
@@ -356,6 +443,16 @@
     </div>
   </div>
 </div>
+<aside id="memo" class="memo">
+  <div class="memo-head">
+    <span class="memo-name" data-trans>Memo</span>
+    <button type="button" id="btnMemoResult" class="memo-btn" data-trans>Add result</button>
+    <button type="button" id="btnMemoCopy" class="memo-btn" data-trans>Copy</button>
+  </div>
+  <div id="memoBody" class="memo-body" contenteditable="plaintext-only" spellcheck="false"><div><br></div></div>
+  <div class="memo-hint"># 제목 &nbsp;·&nbsp; ## 소제목 &nbsp;·&nbsp; 나머지는 본문</div>
+</aside>
+<button type="button" id="btnMemoToggle" class="memo-toggle" title="메모 접기/펴기">☰</button>
 <div class="copyright">Based on <a href="https://github.com/lazygyu/roulette" target="_blank">Marble Roulette</a> by lazygyu (MIT)
 </div>
 </body>
