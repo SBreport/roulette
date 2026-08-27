@@ -6,6 +6,15 @@
 
 set -u
 
+# 이 번들의 실행 파일은 셸 스크립트라 Mach-O 아키텍처 정보가 없다. 그래서
+# LaunchServices 가 Intel 앱으로 보고 Rosetta 로 띄우는데, 그러면 여기서 실행하는
+# 크롬까지 x86_64 슬라이스를 물려받아 느려지고 macOS 가 Rosetta 지원 종료 안내를
+# 띄운다. Info.plist 로도 막지만, 확실하게 하려고 네이티브로 한 번 되띄운다.
+if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ] && [ -z "${ROULETTE_NATIVE:-}" ]; then
+  export ROULETTE_NATIVE=1
+  exec arch -arm64 "$0" "$@"
+fi
+
 # GUI 로 실행되면 PATH 가 최소한만 잡히므로 homebrew 경로를 직접 붙인다.
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
