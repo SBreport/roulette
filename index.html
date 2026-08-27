@@ -179,10 +179,43 @@
       getReady();
     });
 
+    const btnPause = document.querySelector('#btnPause');
+    const btnStop = document.querySelector('#btnStop');
+    const pauseIcon = btnPause.querySelector('.icon');
+
+    // 시작/일시정지/정지의 눌림 가능 여부를 한 곳에서 맞춘다.
+    const updateTransport = () => {
+      const running = window.roulette.isRunning;
+      const paused = window.roulette.isPaused;
+      document.querySelector('#btnStart').disabled = running;
+      // 레이스 중에 섞으면 구슬이 새로 만들어져 진행이 깨진다.
+      document.querySelector('#btnShuffle').disabled = running;
+      btnPause.disabled = !running;
+      pauseIcon.classList.toggle('pause', !paused);
+      pauseIcon.classList.toggle('play', paused);
+      btnPause.title = paused ? '계속' : '일시정지';
+    };
+
     document.querySelector('#btnStart').addEventListener('click', () => {
       if (!ready) return;
       document.querySelector('#settings').classList.add('hide');
-      window.roulette.startRecording().then(() => window.roulette.start());
+      window.roulette.startRecording().then(() => {
+        window.roulette.start();
+        updateTransport();
+      });
+    });
+
+    btnPause.addEventListener('click', () => {
+      window.roulette.setPaused(!window.roulette.isPaused);
+      updateTransport();
+    });
+
+    btnStop.addEventListener('click', () => {
+      window.roulette.stopRace();
+      // 구슬을 이름 목록 기준으로 다시 만들면 시작 직전 상태로 돌아간다.
+      getReady();
+      document.querySelector('#settings').classList.remove('hide');
+      updateTransport();
     });
 
     document.querySelector('#chkAutoRecording').addEventListener('change', (e) => {
@@ -250,7 +283,7 @@
     };
 
     // 빈 줄 요소가 개행 두 개로 세어지는 경우가 있어 연속 개행을 하나로 눌러 둔다.
-    const memoText = () => memoBody.innerText.replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+    const memoText = () => memoBody.innerText.replace(/\n{3,}/g, '\n\n').replace(/^\s+/, '').replace(/\s+$/, '');
 
     const appendMemoLines = (lines) => {
       const lastLine = memoBody.lastElementChild ? memoBody.lastElementChild.textContent.trim() : '';
@@ -349,6 +382,7 @@
     window.roulette.addEventListener('goal', (e) => {
       ready = false;
       rememberResult(e.detail);
+      updateTransport();
       setTimeout(() => {
         document.querySelector('#settings').classList.remove('hide');
       }, 3000);
@@ -367,6 +401,7 @@
     });
 
     document.querySelector('#btnShuffle').click();
+    updateTransport();
 
     const maps = window.roulette.getMaps();
     const mapSelector = document.querySelector('#sltMap');
@@ -486,13 +521,19 @@
         <i class="icon play"></i>
         <span data-trans>Start</span>
       </button>
+      <button id="btnPause" class="btn-icon-only" title="일시정지">
+        <i class="icon pause"></i>
+      </button>
+      <button id="btnStop" class="btn-icon-only" title="정지">
+        <i class="icon stop"></i>
+      </button>
+      <button id="btnMemoResult" data-trans>Add result</button>
     </div>
   </div>
 </div>
 <aside id="memo" class="memo">
   <div class="memo-head">
     <span class="memo-name" data-trans>Memo</span>
-    <button type="button" id="btnMemoResult" class="memo-btn" data-trans>Add result</button>
     <button type="button" id="btnMemoCopy" class="memo-btn" data-trans>Copy</button>
   </div>
   <div id="memoBody" class="memo-body" contenteditable="plaintext-only" spellcheck="false"><div><br></div></div>

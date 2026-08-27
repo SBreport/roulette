@@ -46,6 +46,7 @@ export class Roulette extends EventTarget {
   private _totalMarbleCount = 0;
   private _goalDist: number = Infinity;
   private _isRunning: boolean = false;
+  private _paused: boolean = false;
   private _winner: Marble | null = null;
   private _winnerList: Marble[] = [];
 
@@ -104,6 +105,14 @@ export class Roulette extends EventTarget {
   private _update() {
     if (!this._lastTime) this._lastTime = Date.now();
     const currentTime = Date.now();
+
+    if (this._paused) {
+      // 멈춘 동안 흐른 시간이 재개할 때 한꺼번에 밀려들지 않도록 기준을 당겨 둔다.
+      this._lastTime = currentTime;
+      this._render();
+      window.requestAnimationFrame(this._update);
+      return;
+    }
 
     this._elapsed += (currentTime - this._lastTime) * this._speed * this.fastForwarder.speed;
     if (this._elapsed > 100) {
@@ -350,6 +359,7 @@ export class Roulette extends EventTarget {
 
   public start() {
     this._isRunning = true;
+    this._paused = false;
     this._winnerRank = options.winningRank;
     if (this._winnerRank >= this._marbles.length) {
       this._winnerRank = this._marbles.length - 1;
@@ -367,6 +377,35 @@ export class Roulette extends EventTarget {
       this.physics.start();
       this._marbles.forEach((marble) => (marble.isActive = true));
     }
+  }
+
+  public get isRunning(): boolean {
+    return this._isRunning;
+  }
+
+  public get isPaused(): boolean {
+    return this._paused;
+  }
+
+  /** 진행 중인 레이스를 세우거나 다시 굴린다. 시작 전이거나 끝난 뒤에는 무시한다. */
+  public setPaused(value: boolean) {
+    if (!this._isRunning) return;
+    this._paused = value;
+    this._lastTime = Date.now();
+    this._elapsed = 0;
+  }
+
+  /** 레이스를 중단하고 결과 표시까지 지운다. 구슬 배치는 호출한 쪽에서 다시 만든다. */
+  public stopRace() {
+    this._isRunning = false;
+    this._paused = false;
+    this._winner = null;
+    this._winnerList = [];
+    this._winners = [];
+    this._goalDist = Infinity;
+    this._timeScale = 1;
+    this._elapsed = 0;
+    this._recorder?.stop();
   }
 
   public setSpeed(value: number) {

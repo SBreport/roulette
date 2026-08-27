@@ -89,6 +89,14 @@ div.copyright a {
     mask-image: url('images/play.svg');
   }
 
+  &.pause {
+    mask-image: url('images/pause.svg');
+  }
+
+  &.stop {
+    mask-image: url('images/stop.svg');
+  }
+
   &.shuffle {
     mask-image: url('images/shuffle.svg');
   }
@@ -138,9 +146,19 @@ div.copyright a {
   opacity: 1;
   transition: visibility 0s, opacity 1s linear;
 
+  // 레이스 중에는 입력 영역만 감추고 조작 버튼줄은 남긴다. 일시정지·정지를
+  // 눌러야 하기 때문이다. opacity 는 자식에서 되돌릴 수 없어 자식별로 지정한다.
   &.hide {
-    opacity: 0;
-    visibility: hidden;
+    background: none;
+
+    > .left > h3,
+    > .left > #in_title,
+    > .left > textarea,
+    > .right {
+      opacity: 0;
+      visibility: hidden;
+      transition: visibility 0s, opacity 1s linear;
+    }
   }
 
   h3 {
@@ -781,4 +799,20 @@ div.toast {
     background: var(--memo-bg);
     opacity: 1;
   }
+}
+
+
+// 아이콘만 있는 조작 버튼(일시정지·정지)
+#settings .actions .btn-icon-only {
+  padding: 5px 8px;
+
+  .icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+#settings .actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
