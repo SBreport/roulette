@@ -155,7 +155,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
               wasm: typeof WebAssembly,
               buttons: !!document.querySelector('#btnPause') && !!document.querySelector('#btnStop'),
               memo: !!document.querySelector('#memoBody'),
-              storage: (() => { try { localStorage.setItem('t','1'); return true; } catch (e) { return false; } })()
+              storage: (() => { try { localStorage.setItem('t','1'); return true; } catch (e) { return false; } })(),
+              bodyFont: getComputedStyle(document.body).fontFamily,
+              inputFont: getComputedStyle(document.querySelector('#in_names')).fontFamily,
+              memoFont: getComputedStyle(document.querySelector('#memoBody')).fontFamily,
+              spinner: getComputedStyle(document.querySelector('#in_winnerCount')).appearance,
+              hasKoreanFace: document.fonts.check('12pt "Apple SD Gothic Neo"')
             })
             """
             self.webView.evaluateJavaScript(probe) { result, error in

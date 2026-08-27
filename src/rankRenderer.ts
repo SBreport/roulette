@@ -1,3 +1,4 @@
+import { fontFamily } from './data/constants';
 import type { Marble } from './marble';
 import type { RenderParameters } from './rouletteRenderer';
 import type { Rect } from './types/rect.type';
@@ -77,7 +78,7 @@ export class RankRenderer implements UIObject {
 
     ctx.save();
     ctx.textAlign = 'right';
-    ctx.font = '10pt sans-serif';
+    ctx.font = `10pt ${fontFamily}`;
     ctx.fillStyle = '#666';
     ctx.fillText(`${winners.length} / ${winners.length + marbles.length}`, width - 5, this.fontHeight);
 
@@ -86,7 +87,7 @@ export class RankRenderer implements UIObject {
     ctx.clip();
 
     ctx.translate(0, -startY);
-    ctx.font = 'bold 11pt sans-serif';
+    ctx.font = `bold 11pt ${fontFamily}`;
     if (theme.rankStroke) {
       ctx.lineWidth = 2;
       ctx.strokeStyle = theme.rankStroke;
@@ -100,7 +101,7 @@ export class RankRenderer implements UIObject {
         ctx.fillText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 + y);
       }
     });
-    ctx.font = '10pt sans-serif';
+    ctx.font = `10pt ${fontFamily}`;
     marbles.forEach((marble: { hue: number; name: string }, rank: number) => {
       const y = (rank + winners.length) * this.fontHeight;
       if (y >= startY && y <= startY + ctx.canvas.height) {

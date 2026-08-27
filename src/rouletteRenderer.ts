@@ -1,6 +1,6 @@
 import { type AdOverlayMode, type AdOverlayState, type AdRect, drawAdOverlay } from './adRenderer';
 import type { Camera } from './camera';
-import { canvasHeight, canvasWidth, initialZoom, Themes, winnerAreaHeight } from './data/constants';
+import { canvasHeight, canvasWidth, fontFamily, initialZoom, Themes, winnerAreaHeight } from './data/constants';
 import type { StageDef } from './data/maps';
 import type { GameObject } from './gameObject';
 import { KeywordService } from './keywordService';
@@ -264,7 +264,7 @@ export class RouletteRenderer {
     this.ctx.scale(initialZoom, initialZoom);
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
-    this.ctx.font = '0.4pt sans-serif';
+    this.ctx.font = `0.4pt ${fontFamily}`;
     this.ctx.lineWidth = 3 / (renderParameters.camera.zoom + initialZoom);
     renderParameters.camera.renderScene(this.ctx, () => {
       this.renderAdBoards(renderParameters.stage);
@@ -393,7 +393,7 @@ export class RouletteRenderer {
     this.ctx.fillStyle = theme.winnerText;
     this.ctx.strokeStyle = theme.winnerOutline;
 
-    this.ctx.font = 'bold 48px sans-serif';
+    this.ctx.font = `bold 48px ${fontFamily}`;
     this.ctx.textAlign = 'right';
     this.ctx.lineWidth = 4;
     const textRightX = marbleCenterX - marbleSize / 2 - 20;
@@ -402,7 +402,7 @@ export class RouletteRenderer {
     }
 
     this.ctx.fillText('Winner', textRightX, this._sceneCanvas.height - 120 + WINNER_TEXT_OFFSET);
-    this.ctx.font = 'bold 72px sans-serif';
+    this.ctx.font = `bold 72px ${fontFamily}`;
     this.ctx.fillStyle = `hsl(${winner.hue} 100% ${theme.marbleLightness})`;
     if (theme.winnerOutline) {
       this.ctx.strokeText(winner.name, textRightX, this._sceneCanvas.height - 55 + WINNER_TEXT_OFFSET);
@@ -426,14 +426,14 @@ export class RouletteRenderer {
     this.ctx.lineWidth = 3;
     this.ctx.strokeStyle = theme.winnerOutline;
     this.ctx.fillStyle = theme.winnerText;
-    this.ctx.font = 'bold 30px sans-serif';
+    this.ctx.font = `bold 30px ${fontFamily}`;
     const heading = `Winners (${winnerList.length})`;
     if (theme.winnerOutline) {
       this.ctx.strokeText(heading, areaLeft + padding, areaTop + 34);
     }
     this.ctx.fillText(heading, areaLeft + padding, areaTop + 34);
 
-    this.ctx.font = `bold ${fontSize}px sans-serif`;
+    this.ctx.font = `bold ${fontSize}px ${fontFamily}`;
     this.ctx.lineWidth = 2;
     winnerList.forEach((marble, i) => {
       const centerY = areaTop + headingHeight + rowHeight * i + rowHeight / 2;

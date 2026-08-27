@@ -32,6 +32,30 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  font-family: 'Apple SD Gothic Neo', 'Helvetica Neue', Arial, sans-serif;
+}
+
+// 폼 요소는 글꼴을 상속하지 않아 따로 지정해야 한다.
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+// WebKit 은 숫자칸 증감 화살표를 항상 띄운다. 크롬처럼 감춰 둔다.
+input[type='number'] {
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

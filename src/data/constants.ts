@@ -1,5 +1,9 @@
 import type { ColorTheme } from '../types/ColorTheme';
 
+// 화면과 캔버스가 같은 글꼴을 쓰도록 한 곳에 둔다. 지정하지 않으면 렌더링 엔진의
+// 기본값을 따라가서 브라우저마다(크롬 vs WebKit) 글꼴이 달라진다.
+export const fontFamily = "'Apple SD Gothic Neo', 'Helvetica Neue', Arial, sans-serif";
+
 export const initialZoom = 30;
 export const canvasWidth = 1600;
 export const canvasHeight = 900;
