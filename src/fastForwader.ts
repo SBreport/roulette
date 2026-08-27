@@ -46,11 +46,15 @@ export class FastForwader implements UIObject {
     return this.bound;
   }
 
-  onMouseDown?(_e?: MouseEventArgs): void {
-    this.isEnabled = true;
-  }
-
-  onMouseUp?(_e?: MouseEventArgs): void {
-    this.isEnabled = false;
-  }
+  // 화면을 누르고 있는 동안 2배속으로 가던 기능은 배속 버튼으로 대체했다.
+  // 둘을 같이 두면 배속이 곱해져(4배 + 홀드 = 8배) 예상과 다르게 빨라진다.
+  // 되살리려면 아래 두 핸들러의 주석을 풀면 된다.
+  //
+  // onMouseDown?(_e?: MouseEventArgs): void {
+  //   this.isEnabled = true;
+  // }
+  //
+  // onMouseUp?(_e?: MouseEventArgs): void {
+  //   this.isEnabled = false;
+  // }
 }

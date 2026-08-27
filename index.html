@@ -323,6 +323,17 @@
       simpleToast((await copyToClipboard(text)) ? '메모를 복사했습니다' : '복사에 실패했습니다');
     });
 
+    // ------------------------------------------------------------ 배속
+    // 설정 패널은 시작하면 숨으므로, 배속은 항상 보이는 별도 컨트롤로 둔다.
+    const speedButtons = [...document.querySelectorAll('.speed-btn')];
+    speedButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const value = Number(button.dataset.speed);
+        window.roulette.setSpeed(value);
+        speedButtons.forEach((other) => other.classList.toggle('active', other === button));
+      });
+    });
+
     document.querySelector('#btnMemoToggle').addEventListener('click', () => {
       document.documentElement.classList.toggle('memo-collapsed');
     });
@@ -479,6 +490,11 @@
   <div id="memoBody" class="memo-body" contenteditable="plaintext-only" spellcheck="false"><div><br></div></div>
   <div class="memo-hint"># 제목 &nbsp;·&nbsp; ## 소제목 &nbsp;·&nbsp; 나머지는 본문</div>
 </aside>
+<div id="speedControl" class="speed-control">
+  <button type="button" class="speed-btn active" data-speed="1">1x</button>
+  <button type="button" class="speed-btn" data-speed="2">2x</button>
+  <button type="button" class="speed-btn" data-speed="4">4x</button>
+</div>
 <button type="button" id="btnMemoToggle" class="memo-toggle" title="메모 접기/펴기">☰</button>
 <div class="copyright">Based on <a href="https://github.com/lazygyu/roulette" target="_blank">Marble Roulette</a> by lazygyu (MIT)
 </div>
