@@ -158,6 +158,22 @@ div.copyright a {
     font-size: 14pt;
   }
 
+  #in_title {
+    width: 100%;
+    border: none;
+    background: #999;
+    color: #111;
+    font-size: 12pt;
+    font-weight: 700;
+    padding: 3px 4px;
+    margin-bottom: 3px;
+
+    &::placeholder {
+      font-weight: 400;
+      color: #555;
+    }
+  }
+
   button, .btn {
     color: #fefefe;
     background: #222;
