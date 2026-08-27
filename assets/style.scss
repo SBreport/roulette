@@ -839,6 +839,11 @@ div.toast {
   }
 }
 
+#settings .actions .sep {
+  flex-grow: 1;
+  min-width: 8px;
+}
+
 #settings .actions button:disabled {
   opacity: 0.4;
   cursor: default;

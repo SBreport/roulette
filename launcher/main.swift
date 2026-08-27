@@ -31,7 +31,7 @@ func findFreePort(startingAt start: UInt16) -> UInt16 {
     return start
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var server: Process?
@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
         webView.navigationDelegate = self
+        // 이걸 붙이지 않으면 웹뷰가 alert/confirm 을 조용히 무시한다.
+        webView.uiDelegate = self
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
@@ -69,8 +71,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         switch ProcessInfo.processInfo.environment["ROULETTE_SELFTEST"] {
         case "close": runCloseTest()
+        case "reset": runResetTest()
         case .some: runSelfTest()
         default: break
+        }
+    }
+
+    // MARK: 웹 페이지의 alert / confirm 을 실제 시트로 띄운다.
+
+    func webView(_ webView: WKWebView,
+                 runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "추첨기"
+        alert.informativeText = message
+        alert.addButton(withTitle: "확인")
+        alert.beginSheetModal(for: window) { _ in completionHandler() }
+    }
+
+    func webView(_ webView: WKWebView,
+                 runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "추첨기"
+        alert.informativeText = message
+        alert.addButton(withTitle: "확인")
+        alert.addButton(withTitle: "취소")
+        alert.beginSheetModal(for: window) { response in
+            completionHandler(response == .alertFirstButtonReturn)
         }
     }
 
@@ -135,6 +165,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         server?.terminate()
+    }
+
+    // 진단용: 메모를 채우고 초기화를 눌러, 확인 시트가 실제로 뜨고 눌리는지까지 본다.
+    private func runResetTest() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+            // confirm 은 JS 를 멈추므로, 클릭을 예약해 두고 콜백을 먼저 돌려받는다.
+            let seed = "(() => { const body = document.querySelector('#memoBody'); body.innerHTML = '<div>지워질 메모</div>'; const btn = document.querySelector('#btnReset'); setTimeout(() => btn.click(), 100); return JSON.stringify({ hasButton: !!btn, memoLen: body.innerText.trim().length }); })()"
+            self.webView.evaluateJavaScript(seed) { seeded, _ in
+                print("SELFTEST seed=\(seeded.map { "\($0)" } ?? "?")")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    guard let sheet = self.window.attachedSheet else {
+                        print("SELFTEST {\"confirmSheet\": false}")
+                        NSApp.terminate(nil)
+                        return
+                    }
+                    print("SELFTEST {\"confirmSheet\": true}")
+                    self.window.endSheet(sheet, returnCode: .alertFirstButtonReturn)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                        self.webView.evaluateJavaScript("document.querySelector('#memoBody').innerText.trim()") { result, _ in
+                            print("SELFTEST memoAfterReset=\(result.map { "\($0)" } ?? "?")")
+                            NSApp.terminate(nil)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 진단용: 사용자가 창의 닫기 버튼을 누른 것과 같은 경로를 밟는다.
