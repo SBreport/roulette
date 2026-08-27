@@ -23,8 +23,9 @@ export class KeywordService {
   }
 
   async init(): Promise<void> {
-    await this.fetchKeywords();
-    this._startPeriodicRefresh();
+    // ponytail: 사내 배포판은 외부 키워드 스킨 서버(marblerouletteshop.com)를 쓰지 않는다.
+    // 켜려면 이 return을 지우면 원래 동작(최초 fetch + 60초 폴링)으로 돌아간다.
+    return;
   }
 
   destroy(): void {
