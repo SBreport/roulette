@@ -21,7 +21,9 @@ export type RenderParameters = {
   particleManager: ParticleManager;
   effects: GameObject[];
   winnerRank: number;
+  winnerCount: number;
   winner: Marble | null;
+  winnerList: Marble[];
   size: VectorLike;
   theme: ColorTheme;
 };
@@ -331,7 +333,8 @@ export class RouletteRenderer {
     effects.forEach((effect) => effect.render(this.ctx, camera.zoom * initialZoom, this._theme));
   }
 
-  private renderMarbles({ marbles, camera, winnerRank, winners, size }: RenderParameters) {
+  private renderMarbles({ marbles, camera, winnerRank, winnerCount, winners, size }: RenderParameters) {
+    // 아직 채워지지 않은 당첨 자리에 해당하는 선두(또는 후미) 구슬들에 외곽선을 그린다.
     const winnerIndex = winnerRank - winners.length;
 
     const viewPort = { x: camera.x, y: camera.y, w: size.x, h: size.y, zoom: camera.zoom * initialZoom };
@@ -339,7 +342,7 @@ export class RouletteRenderer {
       marble.render(
         this.ctx,
         camera.zoom * initialZoom,
-        i === winnerIndex,
+        i <= winnerIndex && i > winnerIndex - winnerCount,
         false,
         this.getMarbleImage(marble.name),
         viewPort,
@@ -348,7 +351,8 @@ export class RouletteRenderer {
     });
   }
 
-  private renderWinner({ winner, theme }: RenderParameters) {
+  private renderWinner(params: RenderParameters) {
+    const { winner, winnerList, theme } = params;
     if (!winner) return;
     this.ctx.save();
     this.ctx.fillStyle = theme.winnerBackground;
@@ -358,6 +362,12 @@ export class RouletteRenderer {
       this._sceneCanvas.width / 2,
       winnerAreaHeight
     );
+
+    if (winnerList.length > 1) {
+      this.renderWinnerList(params);
+      this.ctx.restore();
+      return;
+    }
 
     // Draw marble image or colored circle
     const marbleSize = 100;
@@ -399,5 +409,50 @@ export class RouletteRenderer {
     }
     this.ctx.fillText(winner.name, textRightX, this._sceneCanvas.height - 55 + WINNER_TEXT_OFFSET);
     this.ctx.restore();
+  }
+
+  // 당첨자가 여러 명일 때: 큰 이름 하나 대신 순위와 함께 목록으로 그린다.
+  private renderWinnerList({ winnerList, winnerRank, winnerCount, theme }: RenderParameters) {
+    const areaLeft = this._sceneCanvas.width / 2;
+    const areaTop = this._sceneCanvas.height - winnerAreaHeight;
+    const padding = 20;
+    const headingHeight = 42;
+    const firstRank = winnerRank - winnerCount + 2; // 1-based
+    // 인원이 많아지면 글자를 줄여 영역 안에 채운다.
+    const rowHeight = Math.max(14, Math.min(38, (winnerAreaHeight - headingHeight - padding) / winnerList.length));
+    const fontSize = Math.floor(rowHeight * 0.72);
+
+    this.ctx.textAlign = 'left';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = theme.winnerOutline;
+    this.ctx.fillStyle = theme.winnerText;
+    this.ctx.font = 'bold 30px sans-serif';
+    const heading = `Winners (${winnerList.length})`;
+    if (theme.winnerOutline) {
+      this.ctx.strokeText(heading, areaLeft + padding, areaTop + 34);
+    }
+    this.ctx.fillText(heading, areaLeft + padding, areaTop + 34);
+
+    this.ctx.font = `bold ${fontSize}px sans-serif`;
+    this.ctx.lineWidth = 2;
+    winnerList.forEach((marble, i) => {
+      const centerY = areaTop + headingHeight + rowHeight * i + rowHeight / 2;
+      const dotRadius = fontSize * 0.32;
+      const dotX = areaLeft + padding + dotRadius;
+
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, centerY, dotRadius, 0, Math.PI * 2);
+      this.ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}%)`;
+      this.ctx.fill();
+
+      const text = `#${firstRank + i}  ${marble.name}`;
+      const textX = dotX + dotRadius + 12;
+      const baseline = centerY + fontSize * 0.35;
+      if (theme.winnerOutline) {
+        this.ctx.strokeStyle = theme.winnerOutline;
+        this.ctx.strokeText(text, textX, baseline);
+      }
+      this.ctx.fillText(text, textX, baseline);
+    });
   }
 }

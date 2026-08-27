@@ -14,6 +14,7 @@ export class RankRenderer implements UIObject {
   private winners: Marble[] = [];
   private marbles: Marble[] = [];
   private winnerRank: number = -1;
+  private winnerCount: number = 1;
   private messageHandler?: (msg: string) => void;
 
   @bound
@@ -25,6 +26,11 @@ export class RankRenderer implements UIObject {
     this._userMoved = 2000;
   }
 
+  // 당첨 구간(마지막 순위에서 인원수만큼 거슬러 올라간 연속 구간)에 드는 순위인가.
+  private isWinningRank(rank: number, winnerRank = this.winnerRank, winnerCount = this.winnerCount) {
+    return rank <= winnerRank && rank > winnerRank - winnerCount;
+  }
+
   @bound
   onDblClick(e?: MouseEventArgs) {
     if (e) {
@@ -34,7 +40,7 @@ export class RankRenderer implements UIObject {
         tsv.push(
           ...[...this.winners, ...this.marbles].map((m) => {
             rank++;
-            return [rank.toString(), m.name, rank - 1 === this.winnerRank ? '☆' : ''].join('\t');
+            return [rank.toString(), m.name, this.isWinningRank(rank - 1) ? '☆' : ''].join('\t');
           })
         );
 
@@ -55,7 +61,7 @@ export class RankRenderer implements UIObject {
 
   render(
     ctx: CanvasRenderingContext2D,
-    { winners, marbles, winnerRank, theme }: RenderParameters,
+    { winners, marbles, winnerRank, winnerCount, theme }: RenderParameters,
     width: number,
     height: number
   ) {
@@ -67,6 +73,7 @@ export class RankRenderer implements UIObject {
     this.winners = winners;
     this.marbles = marbles;
     this.winnerRank = winnerRank;
+    this.winnerCount = winnerCount;
 
     ctx.save();
     ctx.textAlign = 'right';
@@ -88,17 +95,21 @@ export class RankRenderer implements UIObject {
       const y = rank * this.fontHeight;
       if (y >= startY && y <= startY + ctx.canvas.height) {
         ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}`;
-        ctx.strokeText(`${rank === winnerRank ? '☆' : '\u2714'} ${marble.name} #${rank + 1}`, startX, 20 + y);
-        ctx.fillText(`${rank === winnerRank ? '☆' : '\u2714'} ${marble.name} #${rank + 1}`, startX, 20 + y);
+        const mark = this.isWinningRank(rank, winnerRank, winnerCount) ? '☆' : '\u2714';
+        ctx.strokeText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 + y);
+        ctx.fillText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 + y);
       }
     });
     ctx.font = '10pt sans-serif';
     marbles.forEach((marble: { hue: number; name: string }, rank: number) => {
       const y = (rank + winners.length) * this.fontHeight;
       if (y >= startY && y <= startY + ctx.canvas.height) {
+        // 아직 통과하지 않았어도 당첨 구간에 드는 순위면 별표를 붙인다.
+        const overallRank = rank + winners.length;
+        const mark = this.isWinningRank(overallRank, winnerRank, winnerCount) ? '☆ ' : '';
         ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}`;
-        ctx.strokeText(`${marble.name} #${rank + 1 + winners.length}`, startX, 20 + y);
-        ctx.fillText(`${marble.name} #${rank + 1 + winners.length}`, startX, 20 + y);
+        ctx.strokeText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 + y);
+        ctx.fillText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 + y);
       }
     });
     ctx.restore();

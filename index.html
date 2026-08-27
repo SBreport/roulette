@@ -61,21 +61,33 @@
     window.roulette.setMarbles(names);
     ready = names.length > 0;
     localStorage.setItem('mbr_names', names.join(','));
-    switch (winnerType) {
-      case 'first':
-        setWinnerRank(1);
-        break;
-      case 'last':
-        const total = window.roulette.getCount();
-        setWinnerRank(total);
-        break;
-    }
+    applyWinnerSelection();
   }
 
-  function setWinnerRank(rank) {
+  // 당첨 규칙을 한 곳에서 계산한다.
+  //   first  : 앞에서 N명  -> 마지막 당첨 순위 = N
+  //   last   : 뒤에서 N명  -> 마지막 당첨 순위 = 전체 인원
+  //   custom : 지정한 순위 1명
+  function applyWinnerSelection() {
+    const total = window.roulette.getCount();
+    const parsed = parseInt(document.querySelector('#in_winnerCount').value, 10);
+    let count = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    let rank;
+
+    if (winnerType === 'custom') {
+      count = 1;
+      rank = customRank;
+    } else {
+      count = Math.min(count, Math.max(total, 1));
+      rank = winnerType === 'last' ? Math.max(total, 1) : count;
+    }
+
+    document.querySelector('#in_winnerCount').value = count;
     document.querySelector('#in_winningRank').value = rank;
     window.options.winningRank = rank - 1;
+    window.options.winnerCount = count;
     window.roulette.setWinningRank(window.options.winningRank);
+    window.roulette.setWinnerCount(count);
 
     if (winnerType === 'first') {
       document.querySelector('.btn-first-winner').classList.toggle('active', true);
@@ -95,6 +107,7 @@
 
   let ready = false;
   let winnerType = 'first';
+  let customRank = 1;
 
   document.addEventListener('DOMContentLoaded', () => {
     initialize();
@@ -183,17 +196,23 @@
     document.querySelector('#in_winningRank').addEventListener('change', (e) => {
       const v = parseInt(e.target.value, 10);
       winnerType = 'custom';
-      setWinnerRank(isNaN(v) ? 0 : v);
+      customRank = isNaN(v) || v < 1 ? 1 : v;
+      applyWinnerSelection();
+    });
+
+    document.querySelector('#in_winnerCount').addEventListener('change', () => {
+      // 지정 순위 모드는 1명 고정이므로, 인원을 건드리면 앞에서 N명으로 전환한다.
+      if (winnerType === 'custom') winnerType = 'first';
+      applyWinnerSelection();
     });
 
     document.querySelector('.btn-last-winner').addEventListener('click', () => {
-      const total = window.roulette.getCount();
       winnerType = 'last';
-      setWinnerRank(total);
+      applyWinnerSelection();
     });
     document.querySelector('.btn-first-winner').addEventListener('click', () => {
       winnerType = 'first';
-      setWinnerRank(1);
+      applyWinnerSelection();
     });
 
     window.roulette.addEventListener('goal', () => {
@@ -302,6 +321,15 @@
           <button class="btn-winner btn-first-winner active" data-trans>First</button>
           <button class="btn-winner btn-last-winner" data-trans>Last</button>
           <input type="number" id="in_winningRank" value="1" min="1" />
+        </div>
+      </div>
+      <div class="row">
+        <label for='in_winnerCount'>
+          <i class="icon trophy"></i>
+          <span data-trans>Number of winners</span>
+        </label>
+        <div class="btn-group">
+          <input type="number" id="in_winnerCount" value="1" min="1" />
         </div>
       </div>
       <div class="row row-theme">

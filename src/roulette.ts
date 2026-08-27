@@ -40,10 +40,14 @@ export class Roulette extends EventTarget {
   private _effects: GameObject[] = [];
 
   private _winnerRank = 0;
+  // 당첨 인원. 당첨자는 _winnerRank 에서 이 수만큼 거슬러 올라간 연속 구간이다.
+  // 앞에서 3명이면 rank=2(0-based)/count=3, 뒤에서 3명이면 rank=total-1/count=3.
+  private _winnerCount = 1;
   private _totalMarbleCount = 0;
   private _goalDist: number = Infinity;
   private _isRunning: boolean = false;
   private _winner: Marble | null = null;
+  private _winnerList: Marble[] = [];
 
   private _uiObjects: UIObject[] = [];
 
@@ -148,29 +152,21 @@ export class Roulette extends EventTarget {
       if (marble.y > this._stage.goalY) {
         this._winners.push(marble);
         if (this._isRunning && this._winners.length === this._winnerRank + 1) {
-          this.dispatchEvent(new CustomEvent('goal', { detail: { winner: marble.name } }));
-          this._winner = marble;
-          this._isRunning = false;
-          this._particleManager.shot(this._renderer.width, this._renderer.height);
-          setTimeout(() => {
-            this._recorder.stop();
-          }, 1000);
+          // 목표 순위까지 통과했다. 당첨자는 그 순위에서 인원수만큼 거슬러 올라간 구간.
+          this._finishRace(this._winners.slice(this._winnerRank + 1 - this._winnerCount, this._winnerRank + 1));
         } else if (
           this._isRunning &&
           this._winnerRank === this._winners.length &&
           this._winnerRank === this._totalMarbleCount - 1
         ) {
-          this.dispatchEvent(
-            new CustomEvent('goal', {
-              detail: { winner: this._marbles[i + 1].name },
-            })
-          );
-          this._winner = this._marbles[i + 1];
-          this._isRunning = false;
-          this._particleManager.shot(this._renderer.width, this._renderer.height);
-          setTimeout(() => {
-            this._recorder.stop();
-          }, 1000);
+          // 꼴찌가 목표면 마지막 하나는 결승선을 통과하지 않아도 순위가 확정된다.
+          // 이 구슬은 _winners 에 없으므로 직접 붙인다.
+          // _marbles 는 프레임마다 y 내림차순으로 정렬되므로 통과한 구슬 뒤에 남은 구슬이 온다.
+          // 한 프레임에서 여러 번 갱신되는 동안 순서가 어긋날 수 있어 없으면 다음 스텝으로 미룬다.
+          const lastMarble = this._marbles[i + 1];
+          if (lastMarble) {
+            this._finishRace([...this._winners.slice(this._winners.length - (this._winnerCount - 1)), lastMarble]);
+          }
         }
         setTimeout(() => {
           this.physics.removeMarble(marble.id);
@@ -184,6 +180,21 @@ export class Roulette extends EventTarget {
     this._timeScale = this._calcTimeScale();
 
     this._marbles = this._marbles.filter((marble) => marble.y <= this._stage?.goalY);
+  }
+
+  private _finishRace(winners: Marble[]) {
+    this._winnerList = winners;
+    this._winner = winners[winners.length - 1] ?? null;
+    this._isRunning = false;
+    this.dispatchEvent(
+      new CustomEvent('goal', {
+        detail: { winner: this._winner?.name, winners: winners.map((marble) => marble.name) },
+      })
+    );
+    this._particleManager.shot(this._renderer.width, this._renderer.height);
+    setTimeout(() => {
+      this._recorder.stop();
+    }, 1000);
   }
 
   private _calcTimeScale(): number {
@@ -216,7 +227,9 @@ export class Roulette extends EventTarget {
       particleManager: this._particleManager,
       effects: this._effects,
       winnerRank: this._winnerRank,
+      winnerCount: this._winnerCount,
       winner: this._winner,
+      winnerList: this._winnerList,
       size: { x: this._renderer.width, y: this._renderer.height },
       theme: this._theme,
     };
@@ -321,6 +334,7 @@ export class Roulette extends EventTarget {
   public clearMarbles() {
     this.physics.clearMarbles();
     this._winner = null;
+    this._winnerList = [];
     this._winners = [];
     this._marbles = [];
   }
@@ -340,6 +354,8 @@ export class Roulette extends EventTarget {
     if (this._winnerRank >= this._marbles.length) {
       this._winnerRank = this._marbles.length - 1;
     }
+    // 당첨 인원은 1명 이상, 목표 순위까지의 인원을 넘을 수 없다.
+    this._winnerCount = Math.max(1, Math.min(options.winnerCount, this._winnerRank + 1));
     this._camera.startFollowingMarbles();
 
     if (this._autoRecording) {
@@ -391,6 +407,10 @@ export class Roulette extends EventTarget {
 
   public setWinningRank(rank: number) {
     this._winnerRank = rank;
+  }
+
+  public setWinnerCount(count: number) {
+    this._winnerCount = Math.max(1, count);
   }
 
   public setAutoRecording(value: boolean) {
