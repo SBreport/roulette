@@ -132,7 +132,15 @@
         document.querySelector('#in_names').value = savedNames;
       }
     }
-    document.querySelector('#in_names').addEventListener('input', () => {
+    const namesInput = document.querySelector('#in_names');
+    // 한글은 자모를 조합하는 동안에도 input 이 계속 발생한다. 그때마다 구슬을 전부
+    // 지우고 다시 만들면(물리 바디 재생성) 입력이 끊겨 조합이 낱자로 확정될 수 있다.
+    // 조합 중에는 건너뛰고 조합이 끝났을 때 한 번만 반영한다.
+    namesInput.addEventListener('input', (e) => {
+      if (e.isComposing) return;
+      getReady();
+    });
+    namesInput.addEventListener('compositionend', () => {
       getReady();
     });
 
