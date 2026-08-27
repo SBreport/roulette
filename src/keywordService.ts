@@ -1,7 +1,9 @@
 import type { KeywordEntry, KeywordsData } from './types/keyword.type';
 
-const DEFAULT_KEYWORDS_URL = 'https://marblerouletteshop.com/api/external/keywords.json';
-const DEFAULT_SPRITE_BASE_URL = 'https://marblerouletteshop.com/api/external/sprites';
+// ponytail: 사내 배포판은 외부 스킨 서버를 쓰지 않는다. init()이 바로 return하므로
+// 아래 URL은 호출되지 않으며, 번들에 외부 도메인 문자열이 남지 않도록 비워 둔다.
+const DEFAULT_KEYWORDS_URL = '';
+const DEFAULT_SPRITE_BASE_URL = '';
 const REFRESH_INTERVAL = 60000; // 60 seconds
 
 export class KeywordService {
