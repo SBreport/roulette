@@ -12,6 +12,11 @@ on:
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# 배포 단계가 gh-pages 브랜치에 push 하려면 쓰기 권한이 필요하다. 기본 토큰은 읽기뿐이라
+# 첫 배포가 "Remote branch gh-pages not found" 로 실패했다.
+permissions:
+  contents: write
+
 jobs:
   # This workflow contains a single job called "build"
   build:
