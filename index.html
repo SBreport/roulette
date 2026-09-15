@@ -42,28 +42,58 @@
   }
 
   function parseName(nameStr) {
-    const weightRegex = /(\/\d+)/;
-    const countRegex = /(\*\d+)/;
-    const hasWeight = weightRegex.test(nameStr);
-    const hasCount = countRegex.test(nameStr);
-    const name = /^\s*([^\/*]+)?/.exec(nameStr)[1];
-    const weight = hasWeight ? parseInt(weightRegex.exec(nameStr)[1].replace('/', '')) : 1;
-    const count = hasCount ? parseInt(countRegex.exec(nameStr)[1].replace('*', '')) : 1;
-    return {
-      name,
-      weight,
-      count,
-    };
+    const weightRegex = /\/(\d+)/;
+    const countRegex = /\*(\d+)/;
+    const seatRegex = /@(\d+)/;
+    const name = (/^\s*([^\/*@]+)?/.exec(nameStr)[1] || '').trim();
+    const weight = weightRegex.test(nameStr) ? parseInt(weightRegex.exec(nameStr)[1], 10) : 1;
+    const seat = seatRegex.test(nameStr) ? parseInt(seatRegex.exec(nameStr)[1], 10) : 0;
+    // 고정 자리는 하나뿐이므로 개수 꼬리표는 무시한다.
+    const count = seat ? 1 : countRegex.test(nameStr) ? parseInt(countRegex.exec(nameStr)[1], 10) : 1;
+    return { name, weight, count, seat };
+  }
+
+  // 꼬리표를 다시 문자열로. withSeat 가 false 면 @번호를 뗀다(구슬로 굴릴 때).
+  function formatName(entry, withSeat) {
+    return (
+      entry.name +
+      (entry.weight > 1 ? `/${entry.weight}` : '') +
+      (entry.count > 1 ? `*${entry.count}` : '') +
+      (withSeat && entry.seat ? `@${entry.seat}` : '')
+    );
+  }
+
+  // 자리 모드 계획. 고정된 사람은 굴리지 않고, 자리 수는 인원과 가장 큰 고정 번호 중 큰 쪽.
+  // 같은 번호에 두 명이 붙으면 먼저 적은 사람이 앉고 뒤 사람은 굴린다.
+  function getSeatPlan() {
+    const entries = getNames().map(parseName).filter((entry) => entry.name);
+    const fixed = {};
+    const racers = [];
+    const everyone = [];
+    let people = 0;
+    entries.forEach((entry) => {
+      people += entry.count;
+      everyone.push(formatName(entry, false));
+      if (entry.seat > 0 && !fixed[entry.seat]) {
+        fixed[entry.seat] = entry.name;
+      } else {
+        racers.push(formatName(entry, false));
+      }
+    });
+    const seats = Math.max(people, 0, ...Object.keys(fixed).map(Number));
+    return { seats, fixed, racers, everyone, fixedCount: Object.keys(fixed).length };
   }
 
   function getReady() {
-    const names = getNames();
-    window.roulette.setMarbles(names);
-    ready = names.length > 0;
-    localStorage.setItem('mbr_names', names.join(','));
+    const plan = getSeatPlan();
+    // 자리 모드에서만 고정된 사람이 빠진다. 그냥 추첨이면 @번호는 무시하고 전원 굴린다.
+    const racers = isSeatMode() ? plan.racers : plan.everyone;
+    window.roulette.setMarbles(racers);
+    ready = racers.length > 0;
+    localStorage.setItem('mbr_names', getNames().join(','));
     applyWinnerSelection();
-    // 자리 패널이 이름 수 변화를 따라가도록 알린다.
-    document.dispatchEvent(new CustomEvent('names-ready', { detail: { total: window.roulette.getCount() } }));
+    // 자리 패널이 이름·고정 변화를 따라가도록 알린다.
+    document.dispatchEvent(new CustomEvent('names-ready', { detail: { total: window.roulette.getCount(), plan } }));
   }
 
   // 당첨 규칙을 한 곳에서 계산한다.
@@ -167,13 +197,14 @@
       const nameSet = new Set();
       const nameCounts = {};
       nameSource.forEach(nameSrc => {
-        const name = parseName(nameSrc);
-        const key = name.weight > 1 ? `${name.name}/${name.weight}` : name.name;
+        const entry = parseName(nameSrc);
+        if (!entry.name) return;
+        const key = entry.name + (entry.weight > 1 ? `/${entry.weight}` : '') + (entry.seat ? `@${entry.seat}` : '');
         if (!nameSet.has(key)) {
           nameSet.add(key);
           nameCounts[key] = 0;
         }
-        nameCounts[key] += name.count;
+        nameCounts[key] = entry.seat ? 1 : nameCounts[key] + entry.count;
       });
       const result = [];
       Object.keys(nameCounts).forEach(key => {
@@ -225,7 +256,10 @@
     };
 
     document.querySelector('#btnStart').addEventListener('click', () => {
-      if (!ready) return;
+      if (!ready) {
+        if (isSeatMode() && getSeatPlan().fixedCount > 0) simpleToast('전원이 고정 자리라 굴릴 사람이 없습니다');
+        return;
+      }
       cancelSettingsTimer();
       clearSeats();
       document.querySelector('#settings').classList.add('hide');
@@ -354,11 +388,8 @@
       const firstRank = window.options.winningRank + 2 - names.length;
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const label = isSeatMode() ? '번' : '위';
-      lastResult = {
-        title,
-        lines: [`## ${roundNo}회차 · ${time}`, ...names.map((name, i) => `${firstRank + i}${label} ${name}`)],
-      };
+      const resultLines = isSeatMode() ? seatLines() : names.map((name, i) => `${firstRank + i}위 ${name}`);
+      lastResult = { title, lines: [`## ${roundNo}회차 · ${time}`, ...resultLines] };
       btnMemoResult.disabled = false;
     };
 
@@ -434,35 +465,54 @@
     const seatMap = document.querySelector('#seatMap');
     const sidePanels = { memo: document.querySelector('#memoPanel'), seat: document.querySelector('#seatPanel') };
     const tabButtons = [...document.querySelectorAll('.side-tab')];
-    let seatTotal = 0;
+    let seatPlan = { seats: 0, fixed: {}, fixedCount: 0 };
     let seatAssignments = {}; // 자리 번호(1부터) -> { name, hue }
 
-    // 테이블 양쪽에 마주 보게 앉힌다. 위쪽 줄에 앞 절반, 아래쪽 줄에 나머지.
+    const escapeHtml = (text) =>
+      String(text).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+
+    // 고정되지 않은 자리를 번호순으로. 도착 k등은 이 목록의 k번째 자리에 앉는다.
+    const openSeats = () => {
+      const list = [];
+      for (let no = 1; no <= seatPlan.seats; no++) if (!seatPlan.fixed[no]) list.push(no);
+      return list;
+    };
+    const seatFor = (rank) => openSeats()[rank - 1];
+
+    // 테이블을 세로로 두고 양쪽에 앉힌다. 왼쪽 1..k, 오른쪽 k+1..N.
     const renderSeats = () => {
-      const total = seatTotal;
-      const perRow = Math.max(1, Math.ceil(total / 2));
-      const seatHtml = (no) => {
-        const taken = seatAssignments[no];
-        const color = taken ? `hsl(${taken.hue} 100% 70%)` : '';
-        return `<div class="seat${taken ? ' filled' : ''}" style="--seat-color:${color}">
-          <span class="seat-no">${no}</span>
-          <span class="seat-name">${taken ? escapeHtml(taken.name) : ''}</span>
-        </div>`;
-      };
-      const row = (from, to) => {
-        const cells = [];
-        for (let no = from; no <= to; no++) cells.push(seatHtml(no));
-        return `<div class="seat-row" style="--cols:${perRow}">${cells.join('')}</div>`;
-      };
+      const total = seatPlan.seats;
       if (total === 0) {
         seatMap.innerHTML = '<div class="seat-empty">이름을 입력하면 자리가 생깁니다</div>';
         return;
       }
-      seatMap.innerHTML = row(1, perRow) + '<div class="seat-table"></div>' + (total > perRow ? row(perRow + 1, total) : '');
+      const half = Math.ceil(total / 2);
+      const seatHtml = (no) => {
+        const fixedName = seatPlan.fixed[no];
+        if (fixedName) {
+          return `<div class="seat fixed"><span class="seat-no">${no}</span><span class="seat-name">${escapeHtml(fixedName)}</span><span class="seat-pin">고정</span></div>`;
+        }
+        const taken = seatAssignments[no];
+        const color = taken ? `hsl(${taken.hue} 100% 70%)` : '';
+        return `<div class="seat${taken ? ' filled' : ''}" style="--seat-color:${color}"><span class="seat-no">${no}</span><span class="seat-name">${taken ? escapeHtml(taken.name) : ''}</span></div>`;
+      };
+      const column = (from, to) => {
+        const cells = [];
+        for (let no = from; no <= to; no++) cells.push(seatHtml(no));
+        return `<div class="seat-col">${cells.join('')}</div>`;
+      };
+      seatMap.innerHTML = `<div class="seat-layout">${column(1, half)}<div class="seat-table"></div>${column(half + 1, total)}</div>`;
     };
 
-    const escapeHtml = (text) =>
-      text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+    // 결과 넣기용. 자리 번호순으로 한 줄씩, 고정은 표시를 붙인다.
+    const seatLines = () => {
+      const lines = [];
+      for (let no = 1; no <= seatPlan.seats; no++) {
+        if (seatPlan.fixed[no]) lines.push(`${no}번 ${seatPlan.fixed[no]} (고정)`);
+        else if (seatAssignments[no]) lines.push(`${no}번 ${seatAssignments[no].name}`);
+      }
+      return lines;
+    };
 
     const clearSeats = () => {
       seatAssignments = {};
@@ -476,24 +526,25 @@
       Object.entries(sidePanels).forEach(([name, panel]) => {
         panel.hidden = name !== tab;
       });
-      // 진행 중에 당첨 규칙을 바꾸면 레이스 종료 조건이 흔들리므로 멈춰 있을 때만 반영한다.
-      if (!window.roulette.isRunning) applyWinnerSelection();
+      // 자리 모드는 고정된 사람을 굴리지 않으므로 구슬을 다시 만든다. 진행 중엔 건드리지 않는다.
+      if (!window.roulette.isRunning) getReady();
       renderSeats();
     };
 
     tabButtons.forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
 
     window.roulette.addEventListener('finish', (e) => {
-      seatAssignments[e.detail.rank] = { name: e.detail.name, hue: e.detail.hue };
+      const no = seatFor(e.detail.rank);
+      if (no) seatAssignments[no] = { name: e.detail.name, hue: e.detail.hue };
       renderSeats();
     });
 
     document.addEventListener('names-ready', (e) => {
-      seatTotal = e.detail.total;
+      seatPlan = e.detail.plan;
       if (!window.roulette.isRunning) seatAssignments = {};
       renderSeats();
     });
-    seatTotal = window.roulette.getCount();
+    seatPlan = getSeatPlan();
     showTab(activeTab);
 
     document.querySelector('#btnMemoToggle').addEventListener('click', () => {
@@ -502,14 +553,16 @@
 
     window.roulette.addEventListener('goal', (e) => {
       ready = false;
-      rememberResult(e.detail);
-      if (e.detail.entries && isSeatMode()) {
+      // 마지막 구슬은 결승선을 안 지나므로 여기서 남은 자리를 채운다. 결과 기억보다 먼저.
+      if (isSeatMode() && e.detail.entries) {
         const firstRank = window.options.winningRank + 2 - e.detail.entries.length;
         e.detail.entries.forEach((entry, i) => {
-          seatAssignments[firstRank + i] = entry;
+          const no = seatFor(firstRank + i);
+          if (no) seatAssignments[no] = entry;
         });
         renderSeats();
       }
+      rememberResult(e.detail);
       updateTransport();
       settingsTimer = setTimeout(() => {
         settingsTimer = null;
@@ -679,7 +732,7 @@
       <span class="memo-name" data-trans>Seat map</span>
     </div>
     <div id="seatMap" class="seat-map"></div>
-    <div class="memo-hint" data-trans>Seats fill in arrival order, starting from 1</div>
+    <div class="memo-hint" data-trans>Arrivals take the open seats in order. name@3 pins seat 3</div>
   </section>
 </aside>
 <div id="speedControl" class="speed-control">
