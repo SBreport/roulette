@@ -62,6 +62,8 @@
     ready = names.length > 0;
     localStorage.setItem('mbr_names', names.join(','));
     applyWinnerSelection();
+    // 자리 패널이 이름 수 변화를 따라가도록 알린다.
+    document.dispatchEvent(new CustomEvent('names-ready', { detail: { total: window.roulette.getCount() } }));
   }
 
   // 당첨 규칙을 한 곳에서 계산한다.
@@ -74,7 +76,12 @@
     let count = isNaN(parsed) || parsed < 1 ? 1 : parsed;
     let rank;
 
-    if (winnerType === 'custom') {
+    const seatMode = isSeatMode();
+    if (seatMode) {
+      // 자리 배치는 전원의 도착 순서가 필요하다. 앞에서 전원.
+      count = Math.max(total, 1);
+      rank = count;
+    } else if (winnerType === 'custom') {
       count = 1;
       rank = customRank;
     } else {
@@ -82,8 +89,16 @@
       rank = winnerType === 'last' ? Math.max(total, 1) : count;
     }
 
-    document.querySelector('#in_winnerCount').value = count;
-    document.querySelector('#in_winningRank').value = rank;
+    ['.btn-first-winner', '.btn-last-winner', '#in_winningRank', '#in_winnerCount'].forEach((selector) => {
+      document.querySelector(selector).disabled = seatMode;
+    });
+
+    // 자리 모드의 강제값은 입력칸에 쓰지 않는다. 그래야 메모 탭으로 돌아왔을 때
+    // 사용자가 두었던 규칙이 그대로 살아난다.
+    if (!seatMode) {
+      document.querySelector('#in_winnerCount').value = count;
+      document.querySelector('#in_winningRank').value = rank;
+    }
     window.options.winningRank = rank - 1;
     window.options.winnerCount = count;
     window.roulette.setWinningRank(window.options.winningRank);
@@ -108,6 +123,9 @@
   let ready = false;
   let winnerType = 'first';
   let customRank = 1;
+  // 우측 패널의 활성 탭. '자리' 탭이면 당첨 규칙이 자리 배치용으로 바뀐다.
+  let activeTab = localStorage.getItem('mbr_tab') === 'seat' ? 'seat' : 'memo';
+  const isSeatMode = () => activeTab === 'seat';
 
   document.addEventListener('DOMContentLoaded', () => {
     initialize();
@@ -209,6 +227,7 @@
     document.querySelector('#btnStart').addEventListener('click', () => {
       if (!ready) return;
       cancelSettingsTimer();
+      clearSeats();
       document.querySelector('#settings').classList.add('hide');
       window.roulette.startRecording().then(() => {
         window.roulette.start();
@@ -223,6 +242,7 @@
 
     btnStop.addEventListener('click', () => {
       cancelSettingsTimer();
+      clearSeats();
       window.roulette.stopRace();
       // 구슬을 이름 목록 기준으로 다시 만들면 시작 직전 상태로 돌아간다.
       getReady();
@@ -294,8 +314,15 @@
       });
     };
 
-    // 빈 줄 요소가 개행 두 개로 세어지는 경우가 있어 연속 개행을 하나로 눌러 둔다.
-    const memoText = () => memoBody.innerText.replace(/\n{3,}/g, '\n\n').replace(/^\s+/, '').replace(/\s+$/, '');
+    // innerText 는 패널이 숨겨져(display:none) 있으면 줄바꿈을 잃는다. 자리 탭에 있을 때도
+    // 메모 텍스트가 필요하므로 줄 요소를 직접 이어 붙인다.
+    const memoText = () =>
+      [...memoBody.childNodes]
+        .map((node) => node.textContent)
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/^\s+/, '')
+        .replace(/\s+$/, '');
 
     const appendMemoLines = (lines) => {
       const lastLine = memoBody.lastElementChild ? memoBody.lastElementChild.textContent.trim() : '';
@@ -327,9 +354,10 @@
       const firstRank = window.options.winningRank + 2 - names.length;
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const label = isSeatMode() ? '번' : '위';
       lastResult = {
         title,
-        lines: [`## ${roundNo}회차 · ${time}`, ...names.map((name, i) => `${firstRank + i}위 ${name}`)],
+        lines: [`## ${roundNo}회차 · ${time}`, ...names.map((name, i) => `${firstRank + i}${label} ${name}`)],
       };
       btnMemoResult.disabled = false;
     };
@@ -402,6 +430,72 @@
       btnMemoResult.disabled = true;
     });
 
+    // ------------------------------------------------------------ 자리 배치
+    const seatMap = document.querySelector('#seatMap');
+    const sidePanels = { memo: document.querySelector('#memoPanel'), seat: document.querySelector('#seatPanel') };
+    const tabButtons = [...document.querySelectorAll('.side-tab')];
+    let seatTotal = 0;
+    let seatAssignments = {}; // 자리 번호(1부터) -> { name, hue }
+
+    // 테이블 양쪽에 마주 보게 앉힌다. 위쪽 줄에 앞 절반, 아래쪽 줄에 나머지.
+    const renderSeats = () => {
+      const total = seatTotal;
+      const perRow = Math.max(1, Math.ceil(total / 2));
+      const seatHtml = (no) => {
+        const taken = seatAssignments[no];
+        const color = taken ? `hsl(${taken.hue} 100% 70%)` : '';
+        return `<div class="seat${taken ? ' filled' : ''}" style="--seat-color:${color}">
+          <span class="seat-no">${no}</span>
+          <span class="seat-name">${taken ? escapeHtml(taken.name) : ''}</span>
+        </div>`;
+      };
+      const row = (from, to) => {
+        const cells = [];
+        for (let no = from; no <= to; no++) cells.push(seatHtml(no));
+        return `<div class="seat-row" style="--cols:${perRow}">${cells.join('')}</div>`;
+      };
+      if (total === 0) {
+        seatMap.innerHTML = '<div class="seat-empty">이름을 입력하면 자리가 생깁니다</div>';
+        return;
+      }
+      seatMap.innerHTML = row(1, perRow) + '<div class="seat-table"></div>' + (total > perRow ? row(perRow + 1, total) : '');
+    };
+
+    const escapeHtml = (text) =>
+      text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+
+    const clearSeats = () => {
+      seatAssignments = {};
+      renderSeats();
+    };
+
+    const showTab = (tab) => {
+      activeTab = tab;
+      localStorage.setItem('mbr_tab', tab);
+      tabButtons.forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
+      Object.entries(sidePanels).forEach(([name, panel]) => {
+        panel.hidden = name !== tab;
+      });
+      // 진행 중에 당첨 규칙을 바꾸면 레이스 종료 조건이 흔들리므로 멈춰 있을 때만 반영한다.
+      if (!window.roulette.isRunning) applyWinnerSelection();
+      renderSeats();
+    };
+
+    tabButtons.forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
+
+    window.roulette.addEventListener('finish', (e) => {
+      seatAssignments[e.detail.rank] = { name: e.detail.name, hue: e.detail.hue };
+      renderSeats();
+    });
+
+    document.addEventListener('names-ready', (e) => {
+      seatTotal = e.detail.total;
+      if (!window.roulette.isRunning) seatAssignments = {};
+      renderSeats();
+    });
+    seatTotal = window.roulette.getCount();
+    showTab(activeTab);
+
     document.querySelector('#btnMemoToggle').addEventListener('click', () => {
       document.documentElement.classList.toggle('memo-collapsed');
     });
@@ -409,6 +503,13 @@
     window.roulette.addEventListener('goal', (e) => {
       ready = false;
       rememberResult(e.detail);
+      if (e.detail.entries && isSeatMode()) {
+        const firstRank = window.options.winningRank + 2 - e.detail.entries.length;
+        e.detail.entries.forEach((entry, i) => {
+          seatAssignments[firstRank + i] = entry;
+        });
+        renderSeats();
+      }
       updateTransport();
       settingsTimer = setTimeout(() => {
         settingsTimer = null;
@@ -560,13 +661,26 @@
   </div>
 </div>
 <aside id="memo" class="memo">
-  <div class="memo-head">
-    <span class="memo-name" data-trans>Memo</span>
-    <button type="button" id="btnMemoCopy" class="memo-btn" data-trans>Copy</button>
-    <button type="button" id="btnReset" class="memo-btn" data-trans>Reset</button>
+  <div class="side-tabs">
+    <button type="button" class="side-tab active" data-tab="memo" data-trans>Memo</button>
+    <button type="button" class="side-tab" data-tab="seat" data-trans>Seats</button>
   </div>
-  <div id="memoBody" class="memo-body" contenteditable="plaintext-only" spellcheck="false"><div><br></div></div>
-  <div class="memo-hint"># 제목 &nbsp;·&nbsp; ## 소제목 &nbsp;·&nbsp; 나머지는 본문</div>
+  <section id="memoPanel" class="side-panel">
+    <div class="memo-head">
+      <span class="memo-name" data-trans>Memo</span>
+      <button type="button" id="btnMemoCopy" class="memo-btn" data-trans>Copy</button>
+      <button type="button" id="btnReset" class="memo-btn" data-trans>Reset</button>
+    </div>
+    <div id="memoBody" class="memo-body" contenteditable="plaintext-only" spellcheck="false"><div><br></div></div>
+    <div class="memo-hint"># 제목 &nbsp;·&nbsp; ## 소제목 &nbsp;·&nbsp; 나머지는 본문</div>
+  </section>
+  <section id="seatPanel" class="side-panel" hidden>
+    <div class="memo-head">
+      <span class="memo-name" data-trans>Seat map</span>
+    </div>
+    <div id="seatMap" class="seat-map"></div>
+    <div class="memo-hint" data-trans>Seats fill in arrival order, starting from 1</div>
+  </section>
 </aside>
 <div id="speedControl" class="speed-control">
   <button type="button" class="speed-btn active" data-speed="1">1x</button>

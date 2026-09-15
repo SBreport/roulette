@@ -160,6 +160,10 @@ export class Roulette extends EventTarget {
       }
       if (marble.y > this._stage.goalY) {
         this._winners.push(marble);
+        // 자리 배치처럼 도착 순서를 실시간으로 보여주는 UI 를 위해 통과마다 알린다.
+        this.dispatchEvent(
+          new CustomEvent('finish', { detail: { rank: this._winners.length, name: marble.name, hue: marble.hue } })
+        );
         if (this._isRunning && this._winners.length === this._winnerRank + 1) {
           // 목표 순위까지 통과했다. 당첨자는 그 순위에서 인원수만큼 거슬러 올라간 구간.
           this._finishRace(this._winners.slice(this._winnerRank + 1 - this._winnerCount, this._winnerRank + 1));
@@ -197,7 +201,11 @@ export class Roulette extends EventTarget {
     this._isRunning = false;
     this.dispatchEvent(
       new CustomEvent('goal', {
-        detail: { winner: this._winner?.name, winners: winners.map((marble) => marble.name) },
+        detail: {
+          winner: this._winner?.name,
+          winners: winners.map((marble) => marble.name),
+          entries: winners.map((marble) => ({ name: marble.name, hue: marble.hue })),
+        },
       })
     );
     this._particleManager.shot(this._renderer.width, this._renderer.height);
