@@ -65,46 +65,59 @@
 
   // 자리 모드 계획. 고정된 사람과 이미 앉은 사람은 굴리지 않는다. 자리 수는 인원과
   // 가장 큰 고정 번호 중 큰 쪽. 같은 번호에 두 명이 붙으면 먼저 적은 사람이 앉는다.
+  //
+  // 색은 여기서 정한다. 전체 명단을 한 명씩 펼쳐 색상환을 그 인원수로 나누고, 그 색을
+  // 사람에게 붙여 둔다. 나눠 굴려서 판마다 구슬 수가 달라져도 색이 겹치거나 바뀌지 않는다.
   function getSeatPlan() {
     const entries = getNames().map(parseName).filter((entry) => entry.name);
     const fixed = {};
-    const everyone = [];
-    const people = []; // 굴릴 수 있는 사람을 한 명씩 펼친 목록
-    let headCount = 0;
+    const roster = []; // 전원을 한 명씩 펼친 목록(고정 포함)
     entries.forEach((entry) => {
-      headCount += entry.count;
-      everyone.push(formatName(entry, false));
-      if (entry.seat > 0 && !fixed[entry.seat]) {
-        fixed[entry.seat] = entry.name;
-      } else {
-        for (let i = 0; i < entry.count; i++) people.push({ name: entry.name, weight: entry.weight });
+      const pinned = entry.seat > 0 && !fixed[entry.seat];
+      if (pinned) fixed[entry.seat] = entry.name;
+      for (let i = 0; i < entry.count; i++) {
+        roster.push({ name: entry.name, weight: entry.weight, pinned });
       }
     });
+    roster.forEach((person, index) => {
+      person.hue = (360 / roster.length) * index;
+    });
+    const label = (person) => person.name + (person.weight > 1 ? `/${person.weight}` : '');
 
     // 명단이나 고정이 바뀌면 앞 판에서 앉힌 자리는 의미가 없어진다. 섞기·탭 전환·판 사이
     // 재준비는 명단이 같으므로 자리를 지우지 않는다.
-    const signature = JSON.stringify([everyone.slice().sort(), fixed]);
+    const signature = JSON.stringify([roster.map(label).sort(), fixed]);
     if (signature !== seatSignature) {
       seatSignature = signature;
       seatAssignments = {};
     }
 
-    // 이미 앉은 사람은 다음 판에서 뺀다. 동명이인은 앉은 수만큼만.
+    // 이미 앉은 사람은 다음 판에서 뺀다. 동명이인은 색까지 맞는 쪽을 먼저 찾는다.
+    const people = roster.filter((person) => !person.pinned);
     Object.values(seatAssignments).forEach((seated) => {
-      const index = people.findIndex((person) => person.name === seated.name);
+      let index = people.findIndex((person) => person.name === seated.name && person.hue === seated.hue);
+      if (index < 0) index = people.findIndex((person) => person.name === seated.name);
       if (index >= 0) people.splice(index, 1);
     });
 
-    const racers = people.map((person) => person.name + (person.weight > 1 ? `/${person.weight}` : ''));
-    const seats = Math.max(headCount, 0, ...Object.keys(fixed).map(Number));
-    return { seats, fixed, racers, everyone, fixedCount: Object.keys(fixed).length };
+    const seats = Math.max(roster.length, 0, ...Object.keys(fixed).map(Number));
+    return {
+      seats,
+      fixed,
+      racers: people.map(label),
+      racerHues: people.map((person) => person.hue),
+      everyone: roster.map(label),
+      everyoneHues: roster.map((person) => person.hue),
+      fixedCount: Object.keys(fixed).length,
+    };
   }
 
   function getReady() {
     const plan = getSeatPlan();
     // 자리 모드에서만 고정된 사람이 빠진다. 그냥 추첨이면 @번호는 무시하고 전원 굴린다.
     const racers = isSeatMode() ? plan.racers : plan.everyone;
-    window.roulette.setMarbles(racers);
+    const hues = isSeatMode() ? plan.racerHues : plan.everyoneHues;
+    window.roulette.setMarbles(racers, hues);
     ready = racers.length > 0;
     localStorage.setItem('mbr_names', getNames().join(','));
     applyWinnerSelection();

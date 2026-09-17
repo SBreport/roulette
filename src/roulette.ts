@@ -464,7 +464,9 @@ export class Roulette extends EventTarget {
     this._autoRecording = value;
   }
 
-  public setMarbles(names: string[]) {
+  // hues 를 주면 만들어지는 순서대로 구슬 색을 그 값으로 정한다. 주지 않으면 예전처럼
+  // 그 판의 구슬 수로 색상환을 나눈다 — 나눠 굴릴 때 판마다 같은 색이 다시 나오는 원인이다.
+  public setMarbles(names: string[], hues?: number[]) {
     this.reset();
     const arr = names.slice();
 
@@ -497,11 +499,16 @@ export class Roulette extends EventTarget {
         .fill(0)
         .map((_, i) => i)
     );
+    let created = 0;
     members.forEach((member) => {
       if (member) {
         for (let j = 0; j < member.count; j++) {
           const order = orders.pop() || 0;
-          this._marbles.push(new Marble(this.physics, order, totalCount, member.name, member.weight));
+          const marble = new Marble(this.physics, order, totalCount, member.name, member.weight);
+          const hue = hues?.[created];
+          if (hue !== undefined) marble.setHue(hue);
+          this._marbles.push(marble);
+          created++;
         }
       }
     });

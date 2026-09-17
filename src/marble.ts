@@ -53,6 +53,12 @@ export class Marble {
     return this.position.angle;
   }
 
+  // 기본 색은 그 판의 순번으로 정해지지만, 사람마다 고정된 색을 쓰려면 밖에서 덮어쓴다.
+  setHue(hue: number) {
+    this.hue = hue;
+    this.color = `hsl(${hue} 100% 70%)`;
+  }
+
   constructor(physics: IPhysics, order: number, max: number, name?: string, weight: number = 1) {
     this.name = name || `M${order}`;
     this.weight = weight;
