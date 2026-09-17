@@ -1036,3 +1036,108 @@ div.toast {
   white-space: normal;
   line-height: 1.4;
 }
+
+
+// ---------------------------------------------------------------- 모바일
+// 폰에서는 옆 패널을 둘 폭이 없다. 캔버스는 항상 전체 폭을 쓰고, 메모/자리 패널은 아래에서
+// 올라오는 시트가 된다. 위에는 레이스, 아래에는 자리 배치가 함께 보인다.
+@media screen and (max-width: 750px) {
+  :root,
+  :root.memo-collapsed {
+    --memo-w: 0px;
+  }
+
+  .memo {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 55vh;
+    height: 55dvh;
+    border-left: none;
+    border-top: 1px solid var(--memo-border);
+    border-radius: 14px 14px 0 0;
+    z-index: 1000;
+    transform: translateY(0);
+    transition: transform 0.25s ease;
+  }
+
+  :root.memo-collapsed .memo {
+    transform: translateY(100%);
+  }
+
+  // 시트 윗변에 붙는 손잡이. 접히면 화면 맨 아래로 내려간다.
+  .memo-toggle {
+    top: auto;
+    right: 14px;
+    bottom: 55vh;
+    bottom: 55dvh;
+    transform: none;
+    width: 52px;
+    height: 30px;
+    border: 1px solid var(--memo-border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    font-size: 14px;
+    opacity: 1;
+    transition: bottom 0.25s ease;
+  }
+
+  :root.memo-collapsed .memo-toggle {
+    bottom: 0;
+  }
+
+  // 레이스 중이거나 시트가 열려 있으면 설정 패널에서 버튼줄만 남긴다. 원본의 모바일 규칙은
+  // 시작하면 패널을 통째로 숨겨서 폰에서는 일시정지·정지를 누를 방법이 없었다.
+  #settings.hide,
+  :root:not(.memo-collapsed) #settings {
+    opacity: 1;
+    visibility: visible;
+    background: none;
+    // 보이지 않는 패널 상자가 캔버스 터치를 가로채지 않도록 버튼줄만 터치를 받는다.
+    pointer-events: none;
+
+    > .left > h3,
+    > .left > #in_title,
+    > .left > textarea,
+    > .right {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .actions {
+      pointer-events: auto;
+    }
+  }
+
+  // 시트가 열려 있으면 버튼줄을 시트 바로 위로 올린다. 안 그러면 시트 밑에 깔린다.
+  :root:not(.memo-collapsed) #settings {
+    bottom: calc(55vh + 6px);
+    bottom: calc(55dvh + 6px);
+  }
+
+  // 아이폰은 글자가 16px 보다 작은 입력칸에 포커스가 가면 화면을 확대해 버린다.
+  .memo-body,
+  .seat-tools input,
+  .seat .seat-label-input,
+  #settings #in_title {
+    font-size: 16px;
+  }
+
+  // 손가락으로 누르기엔 번호 칸이 너무 작다.
+  .seat .seat-no {
+    min-width: 30px;
+    padding: 7px 6px;
+    font-size: 13px;
+  }
+
+  .seat .seat-label-input {
+    width: 5.5em;
+  }
+
+  .speed-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}

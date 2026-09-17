@@ -180,6 +180,12 @@
   }
 
 
+  // 폰에서는 메모/자리 패널이 아래 시트로 뜬다. 열린 채 시작하면 레이스 화면을 절반 가리므로
+  // 접어 둔다. 앱 초기화를 기다리면 펼쳐졌다 내려가는 깜빡임이 보여서, 첫 화면 전에 여기서 한다.
+  if (window.matchMedia('(max-width: 750px)').matches) {
+    document.documentElement.classList.add('memo-collapsed');
+  }
+
   let ready = false;
   let winnerType = 'first';
   let customRank = 1;
