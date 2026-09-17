@@ -882,6 +882,34 @@ div.toast {
 
 // ---------------------------------------------------------------- 자리 배치도
 // 테이블을 세로로 가운데 두고 양쪽 열에 앉힌다. 패널이 좁고 길어서 이 방향이 맞다.
+// 나눠서 굴릴 때 한 판에 몇 명을 앉힐지 정하는 줄
+.seat-tools {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--memo-border);
+  font-size: 12px;
+  color: var(--memo-muted);
+
+  input {
+    width: 58px;
+    padding: 4px 6px;
+    border: 1px solid var(--memo-border);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 13px;
+    background: transparent;
+    color: var(--memo-fg);
+  }
+
+  .seat-status {
+    margin-left: auto;
+    font-weight: 700;
+  }
+}
+
 .seat-map {
   flex: 1 1 auto;
   overflow-y: auto;
