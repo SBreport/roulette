@@ -947,13 +947,42 @@ div.toast {
   align-items: center;
   gap: 8px;
 
+  // 자리 번호이자 이름표. 누르면 그 자리에서 고친다.
   .seat-no {
     flex: 0 0 auto;
     min-width: 18px;
+    max-width: 5.5em;
+    padding: 1px 3px;
+    border-radius: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     text-align: right;
     font-size: 11px;
     font-weight: 700;
     color: var(--memo-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--memo-btn-bg);
+      color: var(--memo-fg);
+    }
+
+    &.custom {
+      text-align: left;
+      font-size: 12px;
+      color: var(--memo-fg);
+    }
+  }
+
+  .seat-label-input {
+    width: 4.8em;
+    padding: 1px 3px;
+    border: 1px solid var(--memo-accent);
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--memo-bg);
+    color: var(--memo-fg);
   }
 
   .seat-name {
@@ -999,4 +1028,11 @@ div.toast {
   text-align: center;
   font-size: 13px;
   color: var(--memo-muted);
+}
+
+
+// 자리 패널 힌트는 문장이 길어 줄바꿈을 허용한다.
+#seatPanel .memo-hint {
+  white-space: normal;
+  line-height: 1.4;
 }

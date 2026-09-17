@@ -505,6 +505,19 @@
     const tabButtons = [...document.querySelectorAll('.side-tab')];
     let seatPlan = { seats: 0, fixed: {}, racers: [], fixedCount: 0 };
 
+    // 자리 이름표. 기본은 번호고, 고친 것만 자리 위치(번호)를 키로 저장한다. 테이블에 붙는
+    // 값이라 명단이 바뀌거나 자리를 비워도 남는다.
+    let seatLabels = {};
+    try {
+      seatLabels = JSON.parse(localStorage.getItem('mbr_seat_labels') || '{}') || {};
+    } catch (e) {
+      seatLabels = {};
+    }
+    const saveSeatLabels = () => localStorage.setItem('mbr_seat_labels', JSON.stringify(seatLabels));
+    const seatLabel = (no) => seatLabels[no] || String(no);
+    // 메모에 적을 때: 고친 이름표는 그대로, 아니면 "3번".
+    const seatLineLabel = (no) => seatLabels[no] || `${no}번`;
+
     // 판(한 번의 레이스) 단위 상태. 자리는 판을 넘겨 누적되고, 판마다 그때 비어 있던
     // 자리를 번호순으로 채운다.
     let roundOpenSeats = [];
@@ -539,14 +552,16 @@
         seatStatus.textContent = '';
         return;
       }
+      const labelHtml = (no) =>
+        `<span class="seat-no${seatLabels[no] ? ' custom' : ''}" data-seat="${no}" title="${no}번 자리 · 눌러서 이름표 바꾸기">${escapeHtml(seatLabel(no))}</span>`;
       const seatHtml = (no) => {
         const fixedName = seatPlan.fixed[no];
         if (fixedName) {
-          return `<div class="seat fixed"><span class="seat-no">${no}</span><span class="seat-name">${escapeHtml(fixedName)}</span><span class="seat-pin">고정</span></div>`;
+          return `<div class="seat fixed">${labelHtml(no)}<span class="seat-name">${escapeHtml(fixedName)}</span><span class="seat-pin">고정</span></div>`;
         }
         const taken = seatAssignments[no];
         const color = taken ? `hsl(${taken.hue} 100% 70%)` : '';
-        return `<div class="seat${taken ? ' filled' : ''}" style="--seat-color:${color}"><span class="seat-no">${no}</span><span class="seat-name">${taken ? escapeHtml(taken.name) : ''}</span></div>`;
+        return `<div class="seat${taken ? ' filled' : ''}" style="--seat-color:${color}">${labelHtml(no)}<span class="seat-name">${taken ? escapeHtml(taken.name) : ''}</span></div>`;
       };
       const left = [];
       const right = [];
@@ -556,14 +571,63 @@
       // seatPlan.racers 는 마지막 준비 시점 기준이라, 판이 돌거나 막 끝난 동안은 이번 판에 앉은 수를 뺀다.
       const waiting = Math.max(0, seatPlan.racers.length - roundSeats.length);
       seatStatus.textContent = `남은 ${waiting}명`;
+      document.querySelector('#btnSeatLabelReset').hidden = Object.keys(seatLabels).length === 0;
     };
+
+    // 번호(이름표)를 누르면 그 자리에서 고친다. 굴리는 중에는 도착할 때마다 판을 다시
+    // 그리므로 막는다. 비워서 저장하면 번호로 돌아간다.
+    seatMap.addEventListener('click', (e) => {
+      const tag = e.target.closest('.seat-no');
+      if (!tag || window.roulette.isRunning || tag.querySelector('input')) return;
+      const no = Number(tag.dataset.seat);
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 8;
+      input.className = 'seat-label-input';
+      input.value = seatLabels[no] || '';
+      input.placeholder = String(no);
+      tag.textContent = '';
+      tag.appendChild(input);
+      input.focus();
+      input.select();
+
+      let done = false;
+      const finish = (save) => {
+        if (done) return;
+        done = true;
+        if (save) {
+          const value = input.value.trim();
+          if (value && value !== String(no)) seatLabels[no] = value;
+          else delete seatLabels[no];
+          saveSeatLabels();
+        }
+        // 판 전체를 다시 그리지 않는다. 한 자리를 고치다 곧장 다른 자리를 누르면, 누르는 순간의
+        // 블러로 여기가 불리는데, 그때 DOM 을 갈아치우면 눌린 칸이 사라져 브라우저가 그 클릭을
+        // 버린다(누른 요소와 뗀 요소가 달라짐). 이 칸만 제자리에서 되돌린다.
+        tag.textContent = seatLabel(no);
+        tag.classList.toggle('custom', Boolean(seatLabels[no]));
+        document.querySelector('#btnSeatLabelReset').hidden = Object.keys(seatLabels).length === 0;
+      };
+      input.addEventListener('keydown', (ev) => {
+        if (ev.isComposing) return; // 한글 조합을 확정하는 엔터는 저장으로 치지 않는다
+        if (ev.key === 'Enter') finish(true);
+        else if (ev.key === 'Escape') finish(false);
+      });
+      input.addEventListener('blur', () => finish(true));
+    });
+
+    document.querySelector('#btnSeatLabelReset').addEventListener('click', () => {
+      seatLabels = {};
+      saveSeatLabels();
+      renderSeats();
+    });
 
     // 결과 넣기용. 이번 판에 앉은 자리만 번호순으로. 고정 자리는 첫 판에 함께 적는다.
     const roundLines = () => {
-      const rows = roundSeats.map((no) => ({ no, text: `${no}번 ${seatAssignments[no].name}` }));
+      const rows = roundSeats.map((no) => ({ no, text: `${seatLineLabel(no)} ${seatAssignments[no].name}` }));
       if (roundStartedEmpty) {
         Object.keys(seatPlan.fixed).forEach((key) => {
-          rows.push({ no: Number(key), text: `${key}번 ${seatPlan.fixed[key]} (고정)` });
+          rows.push({ no: Number(key), text: `${seatLineLabel(Number(key))} ${seatPlan.fixed[key]} (고정)` });
         });
       }
       return rows.sort((a, b) => a.no - b.no).map((row) => row.text);
@@ -809,6 +873,7 @@
   <section id="seatPanel" class="side-panel" hidden>
     <div class="memo-head">
       <span class="memo-name" data-trans>Seat map</span>
+      <button type="button" id="btnSeatLabelReset" class="memo-btn" hidden data-trans>Reset labels</button>
       <button type="button" id="btnSeatClear" class="memo-btn" data-trans>Clear seats</button>
     </div>
     <div class="seat-tools">
@@ -817,7 +882,7 @@
       <span id="seatStatus" class="seat-status"></span>
     </div>
     <div id="seatMap" class="seat-map"></div>
-    <div class="memo-hint" data-trans>Arrivals take the open seats in order. name@3 pins seat 3</div>
+    <div class="memo-hint" data-trans>name@3 pins seat 3. Click a seat number to rename it</div>
   </section>
 </aside>
 <div id="speedControl" class="speed-control">
