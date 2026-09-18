@@ -114,9 +114,14 @@ export class Roulette extends EventTarget {
       return;
     }
 
-    this._elapsed += (currentTime - this._lastTime) * this._speed * this.fastForwarder.speed;
-    if (this._elapsed > 100) {
-      this._elapsed %= 100;
+    const multiplier = this._speed * this.fastForwarder.speed;
+    this._elapsed += (currentTime - this._lastTime) * multiplier;
+    // 프레임이 밀렸을 때 한 번에 따라잡을 시간의 상한. 예전에는 % 100 으로 나머지를 취했는데,
+    // 프레임이 느린 기기에서 4배속이면 133ms 가 33ms 로 접혀 1배속보다 느려졌고, 정확히
+    // 100ms 면 0 이 되어 그 프레임에는 아예 멈췄다. 배속만큼 상한을 두고 최댓값으로 자른다.
+    const cap = 100 * multiplier;
+    if (this._elapsed > cap) {
+      this._elapsed = cap;
     }
     this._lastTime = currentTime;
 
@@ -245,6 +250,8 @@ export class Roulette extends EventTarget {
       effects: this._effects,
       winnerRank: this._winnerRank,
       winnerCount: this._winnerCount,
+      // 좁은 화면에서는 씬 캔버스(최소 640px)가 축소돼 붙으므로, 글자 UI 는 그만큼 키워 그린다.
+      uiScale: Math.max(1, this._renderer.sizeFactor),
       winner: this._winner,
       winnerList: this._winnerList,
       size: { x: this._renderer.width, y: this._renderer.height },

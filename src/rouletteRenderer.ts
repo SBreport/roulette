@@ -22,6 +22,7 @@ export type RenderParameters = {
   effects: GameObject[];
   winnerRank: number;
   winnerCount: number;
+  uiScale: number;
   winner: Marble | null;
   winnerList: Marble[];
   size: VectorLike;

@@ -62,10 +62,13 @@ export class RankRenderer implements UIObject {
 
   render(
     ctx: CanvasRenderingContext2D,
-    { winners, marbles, winnerRank, winnerCount, theme }: RenderParameters,
+    { winners, marbles, winnerRank, winnerCount, theme, uiScale }: RenderParameters,
     width: number,
     height: number
   ) {
+    // 폰에서는 씬이 축소돼 붙으므로 글자와 줄 간격을 배율만큼 키운다.
+    const scale = uiScale || 1;
+    this.fontHeight = 16 * scale;
     const startX = width - 5;
     const startY = Math.max(-this.fontHeight, this._currentY - height / 2);
     this.maxY = Math.max(0, (marbles.length + winners.length) * this.fontHeight + this.fontHeight);
@@ -78,16 +81,16 @@ export class RankRenderer implements UIObject {
 
     ctx.save();
     ctx.textAlign = 'right';
-    ctx.font = `10pt ${fontFamily}`;
+    ctx.font = `${10 * scale}pt ${fontFamily}`;
     ctx.fillStyle = '#666';
     ctx.fillText(`${winners.length} / ${winners.length + marbles.length}`, width - 5, this.fontHeight);
 
     ctx.beginPath();
-    ctx.rect(width - 150, this.fontHeight + 2, width, this.maxY);
+    ctx.rect(width - 150 * scale, this.fontHeight + 2, width, this.maxY);
     ctx.clip();
 
     ctx.translate(0, -startY);
-    ctx.font = `bold 11pt ${fontFamily}`;
+    ctx.font = `bold ${11 * scale}pt ${fontFamily}`;
     if (theme.rankStroke) {
       ctx.lineWidth = 2;
       ctx.strokeStyle = theme.rankStroke;
@@ -97,11 +100,11 @@ export class RankRenderer implements UIObject {
       if (y >= startY && y <= startY + ctx.canvas.height) {
         ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}`;
         const mark = this.isWinningRank(rank, winnerRank, winnerCount) ? '☆' : '\u2714';
-        ctx.strokeText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 + y);
-        ctx.fillText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 + y);
+        ctx.strokeText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 * scale + y);
+        ctx.fillText(`${mark} ${marble.name} #${rank + 1}`, startX, 20 * scale + y);
       }
     });
-    ctx.font = `10pt ${fontFamily}`;
+    ctx.font = `${10 * scale}pt ${fontFamily}`;
     marbles.forEach((marble: { hue: number; name: string }, rank: number) => {
       const y = (rank + winners.length) * this.fontHeight;
       if (y >= startY && y <= startY + ctx.canvas.height) {
@@ -109,8 +112,8 @@ export class RankRenderer implements UIObject {
         const overallRank = rank + winners.length;
         const mark = this.isWinningRank(overallRank, winnerRank, winnerCount) ? '☆ ' : '';
         ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}`;
-        ctx.strokeText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 + y);
-        ctx.fillText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 + y);
+        ctx.strokeText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 * scale + y);
+        ctx.fillText(`${mark}${marble.name} #${overallRank + 1}`, startX, 20 * scale + y);
       }
     });
     ctx.restore();
