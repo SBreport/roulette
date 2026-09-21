@@ -886,6 +886,7 @@ div.toast {
 .seat-tools {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -907,6 +908,29 @@ div.toast {
   .seat-status {
     margin-left: auto;
     font-weight: 700;
+  }
+
+  // 앞에서 / 뒤에서 전환
+  .seat-from {
+    display: flex;
+    border: 1px solid var(--memo-border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .seat-from-btn {
+    border: none;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: transparent;
+    color: var(--memo-muted);
+
+    &.active {
+      background: var(--memo-btn-bg);
+      color: var(--memo-fg);
+    }
   }
 }
 

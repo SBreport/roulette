@@ -140,7 +140,8 @@
       // 이번 판에 뽑을 인원만큼 들어오면 레이스가 끝난다. 비워 두면 남은 전원.
       const batch = parseInt(document.querySelector('#in_seatBatch').value, 10);
       count = Math.max(1, Math.min(isNaN(batch) || batch < 1 ? total : batch, Math.max(total, 1)));
-      rank = count;
+      // 뒤에서 뽑을 때는 꼴찌가 목표 순위다. 엔진이 하나 남을 때까지 굴리고 뒤에서 count 명을 돌려준다.
+      rank = seatFrom === 'last' ? Math.max(total, 1) : count;
     } else if (winnerType === 'custom') {
       count = 1;
       rank = customRank;
@@ -195,6 +196,8 @@
   // 자리 배치 상태. 판을 넘겨 누적되므로 굴릴 사람 계산(getSeatPlan)과 패널이 함께 본다.
   let seatAssignments = {}; // 자리 번호(1부터) -> { name, hue }
   let seatSignature = '';
+  // 자리를 어느 쪽부터 뽑을지. 'first' 는 먼저 들어온 순, 'last' 는 끝까지 남은 순.
+  let seatFrom = localStorage.getItem('mbr_seat_from') === 'last' ? 'last' : 'first';
 
   document.addEventListener('DOMContentLoaded', () => {
     initialize();
@@ -530,6 +533,9 @@
     let roundSeats = [];
     let roundActive = false;
     let roundStartedEmpty = false;
+    // 판이 시작될 때의 인원과 방향. 굴리는 중에 전환을 눌러도 이번 판 결과는 흔들리지 않는다.
+    let roundTotal = 0;
+    let roundFrom = 'first';
 
     const escapeHtml = (text) =>
       String(text).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -542,9 +548,11 @@
       return list;
     };
 
-    // 이번 판 k등은 판 시작 때 비어 있던 자리 중 k번째에 앉는다.
+    // 앞에서: 이번 판 k등이 판 시작 때 비어 있던 자리 중 k번째에 앉는다.
+    // 뒤에서: 거울로 뒤집는다. 꼴찌가 첫 빈 자리, 뒤에서 2등이 그다음.
     const seatPerson = (rank, entry) => {
-      const no = roundOpenSeats[rank - 1];
+      const index = roundFrom === 'last' ? roundTotal - rank : rank - 1;
+      const no = roundOpenSeats[index];
       if (!no) return;
       seatAssignments[no] = { name: entry.name, hue: entry.hue };
       if (!roundSeats.includes(no)) roundSeats.push(no);
@@ -640,6 +648,8 @@
     };
 
     const beginSeatRound = () => {
+      roundTotal = window.roulette.getCount();
+      roundFrom = seatFrom;
       roundOpenSeats = openSeats();
       roundStartedEmpty = Object.keys(seatAssignments).length === 0;
       roundSeats = [];
@@ -670,8 +680,13 @@
 
     // 목표 인원이 찬 뒤에도 구슬은 계속 결승선을 지난다. 이번 판 인원까지만 앉힌다.
     window.roulette.addEventListener('finish', (e) => {
-      if (!roundActive || !isSeatMode() || e.detail.rank > window.options.winnerCount) return;
-      seatPerson(e.detail.rank, e.detail);
+      if (!roundActive || !isSeatMode()) return;
+      const batch = window.options.winnerCount;
+      const rank = e.detail.rank;
+      // 앞에서는 앞 batch 명만, 뒤에서는 앞 그룹이 다 빠진 뒤에 들어오는 사람만 앉힌다.
+      const counts = roundFrom === 'last' ? rank > roundTotal - batch : rank <= batch;
+      if (!counts) return;
+      seatPerson(rank, e.detail);
       renderSeats();
     });
 
@@ -680,6 +695,21 @@
       if (!window.roulette.isRunning) roundSeats = [];
       renderSeats();
     });
+
+    const fromButtons = [...document.querySelectorAll('.seat-from-btn')];
+    const showSeatFrom = () => {
+      fromButtons.forEach((button) => button.classList.toggle('active', button.dataset.from === seatFrom));
+    };
+    fromButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        if (window.roulette.isRunning) return;
+        seatFrom = button.dataset.from;
+        localStorage.setItem('mbr_seat_from', seatFrom);
+        showSeatFrom();
+        applyWinnerSelection();
+      });
+    });
+    showSeatFrom();
 
     document.querySelector('#in_seatBatch').addEventListener('input', () => {
       if (!window.roulette.isRunning) applyWinnerSelection();
@@ -885,6 +915,10 @@
     <div class="seat-tools">
       <label for="in_seatBatch" data-trans>Draw this round</label>
       <input type="number" id="in_seatBatch" min="1" placeholder="전원" />
+      <div class="seat-from">
+        <button type="button" class="seat-from-btn active" data-from="first" data-trans>From front</button>
+        <button type="button" class="seat-from-btn" data-from="last" data-trans>From back</button>
+      </div>
       <span id="seatStatus" class="seat-status"></span>
     </div>
     <div id="seatMap" class="seat-map"></div>
