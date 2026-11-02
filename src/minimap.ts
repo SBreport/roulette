@@ -1,4 +1,7 @@
 import { initialZoom } from './data/constants';
+
+// 미니맵 배율. 4 였을 때 화면 왼쪽을 너무 차지해 커서가 자꾸 걸렸다.
+const MINIMAP_SCALE = 2;
 import type { RenderParameters } from './rouletteRenderer';
 import type { ColorTheme } from './types/ColorTheme';
 import type { MapEntityState } from './types/MapEntity.type';
@@ -19,7 +22,7 @@ export class Minimap implements UIObject {
     this.boundingBox = {
       x: 10,
       y: 10,
-      w: 26 * 4,
+      w: 26 * MINIMAP_SCALE,
       h: 0,
     };
   }
@@ -52,8 +55,8 @@ export class Minimap implements UIObject {
     };
     if (this._onViewportChangeHandler) {
       this._onViewportChangeHandler({
-        x: this.mousePosition.x / 4,
-        y: this.mousePosition.y / 4,
+        x: this.mousePosition.x / MINIMAP_SCALE,
+        y: this.mousePosition.y / MINIMAP_SCALE,
       });
     }
   }
@@ -62,7 +65,7 @@ export class Minimap implements UIObject {
     if (!ctx) return;
     const { stage } = params;
     if (!stage) return;
-    this.boundingBox.h = stage.goalY * 4;
+    this.boundingBox.h = stage.goalY * MINIMAP_SCALE;
 
     this.lastParams = params;
 
@@ -70,7 +73,7 @@ export class Minimap implements UIObject {
     ctx.save();
     ctx.fillStyle = params.theme.minimapBackground;
     ctx.translate(10, 10);
-    ctx.scale(4, 4);
+    ctx.scale(MINIMAP_SCALE, MINIMAP_SCALE);
     ctx.fillRect(0, 0, 26, stage.goalY);
 
     this.ctx.lineWidth = 3 / (params.camera.zoom + initialZoom);
