@@ -53,6 +53,17 @@
       chunk.join('\n').split(/[,\r\n]/g).map((v) => v.trim()).filter((v) => !!v && !isTeamSeparator(v));
     const aTokens = tokensOf(cut < 0 ? lines : lines.slice(0, cut));
     const bTokens = cut < 0 ? [] : tokensOf(lines.slice(cut + 1));
+    return buildTeams(aTokens, bTokens, cut >= 0);
+  }
+
+  // 듀얼: 왼쪽 이름칸이 A팀, 듀얼 탭의 칸이 B팀. 두 판이 따로 돌므로 구분선은 쓰지 않는다.
+  function getDuelTeams() {
+    const box = document.querySelector('#in_names_b');
+    const bTokens = box ? box.value.split(/[,\r\n]/g).map((v) => v.trim()).filter(Boolean) : [];
+    return buildTeams(getNames(), bTokens, true);
+  }
+
+  function buildTeams(aTokens, bTokens, hasSeparator) {
     const expand = (tokens) => {
       const people = [];
       tokens.map(parseName).filter((e) => e.name).forEach((e) => {
@@ -68,11 +79,15 @@
       ...bPeople.map((_, i) => 180 + (180 / bPeople.length) * i),
     ];
     return {
-      hasSeparator: cut >= 0,
+      hasSeparator,
       aCount: aPeople.length,
       bCount: bPeople.length,
       racers: [...aTokens, ...bTokens].map(label),
       hues,
+      aRacers: aTokens.map(label),
+      bRacers: bTokens.map(label),
+      aHues: hues.slice(0, aPeople.length),
+      bHues: hues.slice(aPeople.length),
     };
   }
 
@@ -150,11 +165,13 @@
   function getReady() {
     const plan = getSeatPlan();
     // 자리 모드에서만 고정된 사람이 빠진다. 그냥 추첨이면 @번호는 무시하고 전원 굴린다.
-    const teams = isMatchMode() ? getTeams() : null;
-    const racers = teams ? teams.racers : isSeatMode() ? plan.racers : plan.everyone;
-    const hues = teams ? teams.hues : isSeatMode() ? plan.racerHues : plan.everyoneHues;
+    const duel = isDuel() ? getDuelTeams() : null;
+    const teams = duel ? null : isMatchMode() ? getTeams() : null;
+    const racers = duel ? duel.aRacers : teams ? teams.racers : isSeatMode() ? plan.racers : plan.everyone;
+    const hues = duel ? duel.aHues : teams ? teams.hues : isSeatMode() ? plan.racerHues : plan.everyoneHues;
     window.roulette.setMarbles(racers, hues);
-    ready = racers.length > 0;
+    if (engineBReady()) engineB().setMarbles(duel ? duel.bRacers : [], duel ? duel.bHues : []);
+    ready = duel ? racers.length > 0 && duel.bRacers.length > 0 : racers.length > 0;
     // 구분선('---')을 살려야 하므로 입력칸 내용을 그대로 저장한다.
     localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
     applyWinnerSelection();
@@ -175,8 +192,9 @@
     const seatMode = isSeatMode();
     const matchMode = isMatchMode();
     if (matchMode) {
-      // 두 팀 모두 전원의 순위가 필요하다.
-      count = Math.max(total, 1);
+      // 두 팀 모두 전원의 순위가 필요하다. 듀얼은 큰 판 기준으로 두면 작은 판은 엔진이 알아서 깎는다.
+      const bCount = isDuel() && engineBReady() ? engineB().getCount() : 0;
+      count = Math.max(total, bCount, 1);
       rank = count;
     } else if (seatMode) {
       // 이번 판에 뽑을 인원만큼 들어오면 레이스가 끝난다. 비워 두면 남은 전원.
@@ -233,9 +251,15 @@
   let winnerType = 'first';
   let customRank = 1;
   // 우측 패널의 활성 탭. '자리' 탭이면 당첨 규칙이 자리 배치용으로 바뀐다.
-  let activeTab = ['seat', 'match'].includes(localStorage.getItem('mbr_tab')) ? localStorage.getItem('mbr_tab') : 'memo';
+  const isPhone = window.matchMedia('(max-width: 750px)').matches;
+  const allowedTabs = isPhone ? ['seat', 'match'] : ['seat', 'match', 'duel'];
+  let activeTab = allowedTabs.includes(localStorage.getItem('mbr_tab')) ? localStorage.getItem('mbr_tab') : 'memo';
   const isSeatMode = () => activeTab === 'seat';
-  const isMatchMode = () => activeTab === 'match';
+  // 매칭(한 판)과 듀얼(두 판)은 짝 짓는 규칙이 같다. 구슬을 어느 판에 두느냐만 다르다.
+  const isMatchMode = () => activeTab === 'match' || activeTab === 'duel';
+  const isDuel = () => activeTab === 'duel';
+  const engineB = () => window.rouletteB;
+  const engineBReady = () => !!(window.rouletteB && window.rouletteB.isReady);
   // 자리 배치 상태. 판을 넘겨 누적되므로 굴릴 사람 계산(getSeatPlan)과 패널이 함께 본다.
   let seatAssignments = {}; // 자리 번호(1부터) -> { name, hue }
   let seatSignature = '';
@@ -336,9 +360,10 @@
     const pauseIcon = btnPause.querySelector('.icon');
 
     // 시작/일시정지/정지의 눌림 가능 여부를 한 곳에서 맞춘다.
+    const bothEngines = () => (isDuel() && engineBReady() ? [window.roulette, engineB()] : [window.roulette]);
     const updateTransport = () => {
-      const running = window.roulette.isRunning;
-      const paused = window.roulette.isPaused;
+      const running = bothEngines().some((engine) => engine.isRunning);
+      const paused = bothEngines().some((engine) => engine.isPaused);
       document.querySelector('#btnStart').disabled = running;
       // 레이스 중에 섞으면 구슬이 새로 만들어져 진행이 깨진다.
       document.querySelector('#btnShuffle').disabled = running;
@@ -362,13 +387,15 @@
       beginMatch();
       document.querySelector('#settings').classList.add('hide');
       window.roulette.startRecording().then(() => {
-        window.roulette.start();
+        // shortcut: 녹화는 왼쪽 판만, 오른쪽 판까지 녹화하려면 레코더를 합쳐야 한다
+        bothEngines().forEach((engine) => engine.start());
         updateTransport();
       });
     });
 
     btnPause.addEventListener('click', () => {
-      window.roulette.setPaused(!window.roulette.isPaused);
+      const pause = !bothEngines().some((engine) => engine.isPaused);
+      bothEngines().forEach((engine) => engine.setPaused(pause));
       updateTransport();
     });
 
@@ -376,7 +403,7 @@
       cancelSettingsTimer();
       abortSeatRound();
       resetMatch();
-      window.roulette.stopRace();
+      bothEngines().forEach((engine) => engine.stopRace());
       // 구슬을 이름 목록 기준으로 다시 만들면 시작 직전 상태로 돌아간다.
       getReady();
       document.querySelector('#settings').classList.remove('hide');
@@ -540,7 +567,7 @@
     speedButtons.forEach((button) => {
       button.addEventListener('click', () => {
         const value = Number(button.dataset.speed);
-        window.roulette.setSpeed(value);
+        bothEngines().forEach((engine) => engine.setSpeed(value));
         speedButtons.forEach((other) => other.classList.toggle('active', other === button));
       });
     });
@@ -567,6 +594,7 @@
       memo: document.querySelector('#memoPanel'),
       seat: document.querySelector('#seatPanel'),
       match: document.querySelector('#matchPanel'),
+      duel: document.querySelector('#duelPanel'),
     };
     const tabButtons = [...document.querySelectorAll('.side-tab')];
     let seatPlan = { seats: 0, fixed: {}, racers: [], fixedCount: 0 };
@@ -728,10 +756,39 @@
       Object.entries(sidePanels).forEach(([name, panel]) => {
         panel.hidden = name !== tab;
       });
+      document.documentElement.classList.toggle('duel', tab === 'duel');
+      if (tab === 'duel') ensureEngineB();
       // 자리 모드는 고정·착석한 사람을 굴리지 않으므로 구슬을 다시 만든다. 진행 중엔 건드리지 않는다.
       if (!window.roulette.isRunning) getReady();
       renderSeats();
       renderMatch();
+    };
+
+    // 오른쪽 판은 처음 듀얼 탭을 열 때 만든다. wasm 과 물리를 하나 더 띄우므로 준비될 때까지 기다린다.
+    const ensureEngineB = () => {
+      if (window.rouletteB) return;
+      window.rouletteB = window.createRoulette();
+      const waitReady = () => {
+        if (!engineBReady()) {
+          setTimeout(waitReady, 100);
+          return;
+        }
+        engineB().setSpeed(window.roulette.getSpeed());
+        engineB().addEventListener('finish', (e) => {
+          if (!matchActive || !isDuel()) return;
+          matchArrivals.b.push(e.detail);
+          renderMatch();
+        });
+        engineB().addEventListener('goal', (e) => {
+          if (!isDuel()) return;
+          matchArrivals.b = e.detail.entries || [];
+          duelGoals.b = true;
+          renderMatch();
+          finishDuelIfDone(e.detail);
+        });
+        if (!window.roulette.isRunning) getReady();
+      };
+      waitReady();
     };
 
     tabButtons.forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
@@ -806,11 +863,19 @@
       return { a: side('a'), b: side('b') };
     };
 
+    const currentTeams = () => (isDuel() ? getDuelTeams() : getTeams());
     const renderMatch = () => {
       const total = Math.max(matchSizes.a, matchSizes.b);
-      if (!getTeams().hasSeparator) {
-        matchList.innerHTML = '<div class="seat-empty">이름칸에 --- 한 줄을 넣어 A팀(위)과 B팀(아래)을 나누세요</div>';
-        matchStatus.textContent = '';
+      const list = isDuel() ? document.querySelector('#duelList') : matchList;
+      const status = isDuel() ? document.querySelector('#duelStatus') : matchStatus;
+      if (isDuel() && matchSizes.b === 0) {
+        list.innerHTML = '<div class="seat-empty">B팀 이름을 입력하면 짝이 생깁니다</div>';
+        status.textContent = `A ${matchSizes.a} · B 0`;
+        return;
+      }
+      if (!isDuel() && !getTeams().hasSeparator) {
+        list.innerHTML = '<div class="seat-empty">이름칸에 --- 한 줄을 넣어 A팀(위)과 B팀(아래)을 나누세요</div>';
+        status.textContent = '';
         return;
       }
       const cell = (side) => {
@@ -824,9 +889,9 @@
         const pair = pairAt(k);
         rows.push(`<div class="match-row"><span class="match-no">${k + 1}</span>${cell(pair.a)}<span class="match-dash">—</span>${cell(pair.b)}</div>`);
       }
-      matchList.innerHTML = rows.join('') || '<div class="seat-empty">이름을 입력하면 짝이 생깁니다</div>';
+      list.innerHTML = rows.join('') || '<div class="seat-empty">이름을 입력하면 짝이 생깁니다</div>';
       const done = Math.min(matchArrivals.a.length, matchSizes.a) + Math.min(matchArrivals.b.length, matchSizes.b);
-      matchStatus.textContent = `A ${matchSizes.a} · B ${matchSizes.b} · 도착 ${done}/${matchSizes.a + matchSizes.b}`;
+      status.textContent = `A ${matchSizes.a} · B ${matchSizes.b} · 도착 ${done}/${matchSizes.a + matchSizes.b}`;
     };
 
     // 결과 넣기용. 짝 번호순, 되감긴 쪽에는 (겹침).
@@ -841,9 +906,24 @@
       return lines;
     };
 
+    // 듀얼은 두 판이 따로 끝난다. 둘 다 끝났을 때 한 번만 결과를 기억한다.
+    let duelGoals = { a: false, b: false };
+    const finishDuelIfDone = (detail) => {
+      if (!duelGoals.a || !duelGoals.b) return;
+      matchActive = false;
+      ready = false;
+      rememberResult(detail);
+      updateTransport();
+      settingsTimer = setTimeout(() => {
+        settingsTimer = null;
+        document.querySelector('#settings').classList.remove('hide');
+      }, 3000);
+    };
+
     const beginMatch = () => {
       if (!isMatchMode()) return;
-      const teams = getTeams();
+      duelGoals = { a: false, b: false };
+      const teams = currentTeams();
       matchSizes = { a: teams.aCount, b: teams.bCount };
       matchArrivals = { a: [], b: [] };
       matchActive = true;
@@ -858,13 +938,26 @@
 
     window.roulette.addEventListener('finish', (e) => {
       if (!matchActive) return;
-      matchArrivals[e.detail.hue < 180 ? 'a' : 'b'].push(e.detail);
+      matchArrivals[isDuel() ? 'a' : e.detail.hue < 180 ? 'a' : 'b'].push(e.detail);
       renderMatch();
     });
 
+    // B팀 칸: 왼쪽 이름칸과 같은 규칙(조합 중에는 구슬을 다시 만들지 않는다).
+    const namesB = document.querySelector('#in_names_b');
+    namesB.value = localStorage.getItem('mbr_names_b') || '';
+    const onNamesB = () => {
+      localStorage.setItem('mbr_names_b', namesB.value);
+      if (!window.roulette.isRunning) getReady();
+    };
+    namesB.addEventListener('input', (e) => {
+      if (e.isComposing) return;
+      onNamesB();
+    });
+    namesB.addEventListener('compositionend', onNamesB);
+
     document.addEventListener('names-ready', () => {
       if (window.roulette.isRunning) return;
-      const teams = getTeams();
+      const teams = currentTeams();
       matchSizes = { a: teams.aCount, b: teams.bCount };
       matchArrivals = { a: [], b: [] };
       renderMatch();
@@ -902,6 +995,15 @@
         e.detail.entries.forEach((entry, i) => seatPerson(firstRank + i, entry));
         roundActive = false;
         renderSeats();
+      }
+      if (isDuel() && e.detail.entries) {
+        matchArrivals.a = e.detail.entries;
+        duelGoals.a = true;
+        renderMatch();
+        // 오른쪽 판이 아직 돌고 있으면 거기서 마무리한다.
+        ready = true;
+        finishDuelIfDone(e.detail);
+        return;
       }
       if (isMatchMode() && e.detail.entries) {
         // 전원 순위이므로 entries 가 1등부터 끝까지다. 결승선을 안 지난 마지막 구슬도 여기 있다.
@@ -1068,6 +1170,7 @@
     <button type="button" class="side-tab active" data-tab="memo" data-trans>Memo</button>
     <button type="button" class="side-tab" data-tab="seat" data-trans>Seats</button>
     <button type="button" class="side-tab" data-tab="match" data-trans>Match</button>
+    <button type="button" class="side-tab side-tab-duel" data-tab="duel" data-trans>Duel</button>
   </div>
   <section id="memoPanel" class="side-panel">
     <div class="memo-head">
@@ -1110,6 +1213,25 @@
     </div>
     <div id="matchList" class="seat-map"></div>
     <div class="memo-hint" data-trans>Put --- on its own line in the names box: team A above, team B below</div>
+  </section>
+  <section id="duelPanel" class="side-panel" hidden>
+    <div class="memo-head">
+      <span class="memo-name" data-trans>Duel</span>
+    </div>
+    <div class="duel-names">
+      <label for="in_names_b" data-trans>Team B names (left box is team A)</label>
+      <textarea id="in_names_b" placeholder="B팀 이름을 쉼표나 엔터로 구분"></textarea>
+    </div>
+    <div class="seat-tools">
+      <label data-trans>Extras pair with</label>
+      <div class="seat-from">
+        <button type="button" class="match-wrap-btn active" data-wrap="front" data-trans>Front side</button>
+        <button type="button" class="match-wrap-btn" data-wrap="back" data-trans>Back side</button>
+      </div>
+      <span id="duelStatus" class="seat-status"></span>
+    </div>
+    <div id="duelList" class="seat-map"></div>
+    <div class="memo-hint" data-trans>Two boards race at once; A's k-th arrival pairs with B's k-th</div>
   </section>
 </aside>
 <div id="speedControl" class="speed-control">

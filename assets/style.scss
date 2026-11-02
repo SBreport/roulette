@@ -1218,3 +1218,61 @@ div.toast {
     vertical-align: middle;
   }
 }
+
+
+// ---------------------------------------------------------------- 듀얼(두 판)
+// 두 번째 엔진의 캔버스는 body 에 두 번째 canvas 로 붙는다. 듀얼이 아닐 땐 감춘다.
+canvas:nth-of-type(2) {
+  display: none;
+}
+
+:root.duel {
+  canvas:first-of-type {
+    width: calc((100% - var(--memo-w)) / 2);
+  }
+
+  canvas:nth-of-type(2) {
+    display: block;
+    left: calc((100% - var(--memo-w)) / 2);
+    width: calc((100% - var(--memo-w)) / 2);
+    border-left: 2px solid var(--memo-border);
+  }
+
+  // 배속 버튼은 왼쪽 판 위에
+  .speed-control {
+    left: calc((100% - var(--memo-w)) / 4);
+  }
+}
+
+.duel-names {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--memo-border);
+
+  label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--memo-muted);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 4.5em;
+    padding: 6px 8px;
+    border: 1px solid var(--memo-border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: transparent;
+    color: var(--memo-fg);
+    resize: vertical;
+  }
+}
+
+// 폰에서는 두 판을 동시에 돌리지 않는다. 탭 자체를 숨긴다.
+@media screen and (max-width: 750px) {
+  .side-tab-duel {
+    display: none;
+  }
+}
