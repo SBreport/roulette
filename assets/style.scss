@@ -1170,3 +1170,51 @@ div.toast {
     font-size: 13px;
   }
 }
+
+
+// ---------------------------------------------------------------- 1:1 매칭
+.match-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--memo-border);
+}
+
+.match-no {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--memo-muted);
+}
+
+.match-dash {
+  text-align: center;
+  color: var(--memo-muted);
+}
+
+.match-name {
+  --seat-color: var(--memo-fg);
+  min-height: 1.4em;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--seat-color);
+  overflow-wrap: anywhere;
+
+  &.none {
+    font-weight: 400;
+    color: var(--memo-muted);
+  }
+
+  small {
+    margin-left: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--memo-accent);
+    color: #fff;
+    vertical-align: middle;
+  }
+}

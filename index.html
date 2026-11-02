@@ -36,9 +36,44 @@
 <body>
 <script type="module" src="./src/index.ts"></script>
 <script type="text/javascript">
+  // 이름칸에서 '---' 한 줄은 팀 구분선이다. 이름이 아니므로 어디서도 사람으로 세지 않는다.
+  const isTeamSeparator = (token) => /^-{3,}$/.test(token.trim());
+
   function getNames() {
     const value = document.querySelector('#in_names').value.trim();
-    return value.split(/[,\r\n]/g).map(v => v.trim()).filter(v => !!v);
+    return value.split(/[,\r\n]/g).map(v => v.trim()).filter(v => !!v && !isTeamSeparator(v));
+  }
+
+  // 매칭용 두 팀. 구분선 위가 A, 아래가 B. 색상환을 반씩 나눠 A 는 0~180, B 는 180~360 을 쓰므로
+  // 구슬 색만 보고 팀을 알 수 있다(hue < 180 이면 A).
+  function getTeams() {
+    const lines = document.querySelector('#in_names').value.split(/\r?\n/);
+    const cut = lines.findIndex(isTeamSeparator);
+    const tokensOf = (chunk) =>
+      chunk.join('\n').split(/[,\r\n]/g).map((v) => v.trim()).filter((v) => !!v && !isTeamSeparator(v));
+    const aTokens = tokensOf(cut < 0 ? lines : lines.slice(0, cut));
+    const bTokens = cut < 0 ? [] : tokensOf(lines.slice(cut + 1));
+    const expand = (tokens) => {
+      const people = [];
+      tokens.map(parseName).filter((e) => e.name).forEach((e) => {
+        for (let i = 0; i < e.count; i++) people.push(e.name);
+      });
+      return people;
+    };
+    const aPeople = expand(aTokens);
+    const bPeople = expand(bTokens);
+    const label = (token) => formatName(parseName(token), false);
+    const hues = [
+      ...aPeople.map((_, i) => (180 / aPeople.length) * i),
+      ...bPeople.map((_, i) => 180 + (180 / bPeople.length) * i),
+    ];
+    return {
+      hasSeparator: cut >= 0,
+      aCount: aPeople.length,
+      bCount: bPeople.length,
+      racers: [...aTokens, ...bTokens].map(label),
+      hues,
+    };
   }
 
   function parseName(nameStr) {
@@ -115,11 +150,13 @@
   function getReady() {
     const plan = getSeatPlan();
     // 자리 모드에서만 고정된 사람이 빠진다. 그냥 추첨이면 @번호는 무시하고 전원 굴린다.
-    const racers = isSeatMode() ? plan.racers : plan.everyone;
-    const hues = isSeatMode() ? plan.racerHues : plan.everyoneHues;
+    const teams = isMatchMode() ? getTeams() : null;
+    const racers = teams ? teams.racers : isSeatMode() ? plan.racers : plan.everyone;
+    const hues = teams ? teams.hues : isSeatMode() ? plan.racerHues : plan.everyoneHues;
     window.roulette.setMarbles(racers, hues);
     ready = racers.length > 0;
-    localStorage.setItem('mbr_names', getNames().join(','));
+    // 구분선('---')을 살려야 하므로 입력칸 내용을 그대로 저장한다.
+    localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
     applyWinnerSelection();
     // 자리 패널이 이름·고정 변화를 따라가도록 알린다.
     document.dispatchEvent(new CustomEvent('names-ready', { detail: { total: window.roulette.getCount(), plan } }));
@@ -136,7 +173,12 @@
     let rank;
 
     const seatMode = isSeatMode();
-    if (seatMode) {
+    const matchMode = isMatchMode();
+    if (matchMode) {
+      // 두 팀 모두 전원의 순위가 필요하다.
+      count = Math.max(total, 1);
+      rank = count;
+    } else if (seatMode) {
       // 이번 판에 뽑을 인원만큼 들어오면 레이스가 끝난다. 비워 두면 남은 전원.
       const batch = parseInt(document.querySelector('#in_seatBatch').value, 10);
       count = Math.max(1, Math.min(isNaN(batch) || batch < 1 ? total : batch, Math.max(total, 1)));
@@ -151,12 +193,12 @@
     }
 
     ['.btn-first-winner', '.btn-last-winner', '#in_winningRank', '#in_winnerCount'].forEach((selector) => {
-      document.querySelector(selector).disabled = seatMode;
+      document.querySelector(selector).disabled = seatMode || matchMode;
     });
 
     // 자리 모드의 강제값은 입력칸에 쓰지 않는다. 그래야 메모 탭으로 돌아왔을 때
     // 사용자가 두었던 규칙이 그대로 살아난다.
-    if (!seatMode) {
+    if (!seatMode && !matchMode) {
       document.querySelector('#in_winnerCount').value = count;
       document.querySelector('#in_winningRank').value = rank;
     }
@@ -191,8 +233,9 @@
   let winnerType = 'first';
   let customRank = 1;
   // 우측 패널의 활성 탭. '자리' 탭이면 당첨 규칙이 자리 배치용으로 바뀐다.
-  let activeTab = localStorage.getItem('mbr_tab') === 'seat' ? 'seat' : 'memo';
+  let activeTab = ['seat', 'match'].includes(localStorage.getItem('mbr_tab')) ? localStorage.getItem('mbr_tab') : 'memo';
   const isSeatMode = () => activeTab === 'seat';
+  const isMatchMode = () => activeTab === 'match';
   // 자리 배치 상태. 판을 넘겨 누적되므로 굴릴 사람 계산(getSeatPlan)과 패널이 함께 본다.
   let seatAssignments = {}; // 자리 번호(1부터) -> { name, hue }
   let seatSignature = '';
@@ -235,31 +278,39 @@
     });
 
     document.querySelector('#in_names').addEventListener('blur', () => {
-      const nameSource = getNames();
-      const nameSet = new Set();
-      const nameCounts = {};
-      nameSource.forEach(nameSrc => {
-        const entry = parseName(nameSrc);
-        if (!entry.name) return;
-        const key = entry.name + (entry.weight > 1 ? `/${entry.weight}` : '') + (entry.seat ? `@${entry.seat}` : '');
-        if (!nameSet.has(key)) {
-          nameSet.add(key);
-          nameCounts[key] = 0;
-        }
-        nameCounts[key] = entry.seat ? 1 : nameCounts[key] + entry.count;
-      });
-      const result = [];
-      Object.keys(nameCounts).forEach(key => {
-        if (nameCounts[key] > 1) {
-          result.push(`${key}*${nameCounts[key]}`);
+      // 같은 이름을 합쳐 '이름*N' 으로 정리한다. 팀 구분선('---')은 구간을 가르는 기준이라
+      // 구간별로 따로 정리하고 구분선은 제자리에 둔다.
+      const normalize = (tokens) => {
+        const nameSet = new Set();
+        const nameCounts = {};
+        tokens.forEach((nameSrc) => {
+          const entry = parseName(nameSrc);
+          if (!entry.name) return;
+          const key = entry.name + (entry.weight > 1 ? `/${entry.weight}` : '') + (entry.seat ? `@${entry.seat}` : '');
+          if (!nameSet.has(key)) {
+            nameSet.add(key);
+            nameCounts[key] = 0;
+          }
+          nameCounts[key] = entry.seat ? 1 : nameCounts[key] + entry.count;
+        });
+        return Object.keys(nameCounts).map((key) => (nameCounts[key] > 1 ? `${key}*${nameCounts[key]}` : key)).join(',');
+      };
+      const lines = document.querySelector('#in_names').value.split(/\r?\n/);
+      const segments = [];
+      let current = [];
+      lines.forEach((line) => {
+        if (isTeamSeparator(line)) {
+          segments.push(current);
+          current = [];
         } else {
-          result.push(key);
+          current.push(line);
         }
       });
+      segments.push(current);
+      const tokensOf = (chunk) => chunk.join('\n').split(/[,\r\n]/g).map((v) => v.trim()).filter(Boolean);
+      const newValue = segments.map((chunk) => normalize(tokensOf(chunk))).join('\n---\n');
 
       const oldValue = document.querySelector('#in_names').value;
-      const newValue = result.join(',');
-
       if (oldValue !== newValue) {
         document.querySelector('#in_names').value = newValue;
         getReady();
@@ -308,6 +359,7 @@
       }
       cancelSettingsTimer();
       beginSeatRound();
+      beginMatch();
       document.querySelector('#settings').classList.add('hide');
       window.roulette.startRecording().then(() => {
         window.roulette.start();
@@ -323,6 +375,7 @@
     btnStop.addEventListener('click', () => {
       cancelSettingsTimer();
       abortSeatRound();
+      resetMatch();
       window.roulette.stopRace();
       // 구슬을 이름 목록 기준으로 다시 만들면 시작 직전 상태로 돌아간다.
       getReady();
@@ -434,7 +487,7 @@
       const firstRank = window.options.winningRank + 2 - names.length;
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const resultLines = isSeatMode() ? roundLines() : names.map((name, i) => `${firstRank + i}위 ${name}`);
+      const resultLines = isMatchMode() ? matchLines() : isSeatMode() ? roundLines() : names.map((name, i) => `${firstRank + i}위 ${name}`);
       lastResult = { title, lines: [`## ${roundNo}회차 · ${time}`, ...resultLines] };
       btnMemoResult.disabled = false;
     };
@@ -510,7 +563,11 @@
     // ------------------------------------------------------------ 자리 배치
     const seatMap = document.querySelector('#seatMap');
     const seatStatus = document.querySelector('#seatStatus');
-    const sidePanels = { memo: document.querySelector('#memoPanel'), seat: document.querySelector('#seatPanel') };
+    const sidePanels = {
+      memo: document.querySelector('#memoPanel'),
+      seat: document.querySelector('#seatPanel'),
+      match: document.querySelector('#matchPanel'),
+    };
     const tabButtons = [...document.querySelectorAll('.side-tab')];
     let seatPlan = { seats: 0, fixed: {}, racers: [], fixedCount: 0 };
 
@@ -674,6 +731,7 @@
       // 자리 모드는 고정·착석한 사람을 굴리지 않으므로 구슬을 다시 만든다. 진행 중엔 건드리지 않는다.
       if (!window.roulette.isRunning) getReady();
       renderSeats();
+      renderMatch();
     };
 
     tabButtons.forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
@@ -722,6 +780,112 @@
       getReady();
     });
 
+    // ------------------------------------------------------------ 1:1 매칭
+    // 각 팀 안의 도착 순위로 짝을 짓는다. A 의 k등 ↔ B 의 k등. 인원이 다르면 남는 쪽이
+    // 상대 팀의 앞쪽(또는 뒤쪽)부터 한 번 더 붙는다.
+    const matchList = document.querySelector('#matchList');
+    const matchStatus = document.querySelector('#matchStatus');
+    let matchWrap = localStorage.getItem('mbr_match_wrap') === 'back' ? 'back' : 'front';
+    let matchArrivals = { a: [], b: [] };
+    let matchSizes = { a: 0, b: 0 };
+    let matchActive = false;
+
+    // 짝 k(0부터) 의 양쪽. 짧은 팀 쪽은 k 가 인원을 넘으면 상대가 되는 사람을 되감아 찾는다.
+    const partnerIndex = (k, size) => {
+      if (k < size) return { index: k, wrapped: false };
+      if (size === 0) return { index: -1, wrapped: true };
+      const over = (k - size) % size;
+      return { index: matchWrap === 'front' ? over : size - 1 - over, wrapped: true };
+    };
+
+    const pairAt = (k) => {
+      const side = (team) => {
+        const { index, wrapped } = partnerIndex(k, matchSizes[team]);
+        return { person: index >= 0 ? matchArrivals[team][index] : null, wrapped, exists: index >= 0 };
+      };
+      return { a: side('a'), b: side('b') };
+    };
+
+    const renderMatch = () => {
+      const total = Math.max(matchSizes.a, matchSizes.b);
+      if (!getTeams().hasSeparator) {
+        matchList.innerHTML = '<div class="seat-empty">이름칸에 --- 한 줄을 넣어 A팀(위)과 B팀(아래)을 나누세요</div>';
+        matchStatus.textContent = '';
+        return;
+      }
+      const cell = (side) => {
+        if (!side.exists) return '<span class="match-name none">상대 없음</span>';
+        if (!side.person) return '<span class="match-name"></span>';
+        const color = `hsl(${side.person.hue} 100% 70%)`;
+        return `<span class="match-name${side.wrapped ? ' wrapped' : ''}" style="--seat-color:${color}">${escapeHtml(side.person.name)}${side.wrapped ? '<small>겹침</small>' : ''}</span>`;
+      };
+      const rows = [];
+      for (let k = 0; k < total; k++) {
+        const pair = pairAt(k);
+        rows.push(`<div class="match-row"><span class="match-no">${k + 1}</span>${cell(pair.a)}<span class="match-dash">—</span>${cell(pair.b)}</div>`);
+      }
+      matchList.innerHTML = rows.join('') || '<div class="seat-empty">이름을 입력하면 짝이 생깁니다</div>';
+      const done = Math.min(matchArrivals.a.length, matchSizes.a) + Math.min(matchArrivals.b.length, matchSizes.b);
+      matchStatus.textContent = `A ${matchSizes.a} · B ${matchSizes.b} · 도착 ${done}/${matchSizes.a + matchSizes.b}`;
+    };
+
+    // 결과 넣기용. 짝 번호순, 되감긴 쪽에는 (겹침).
+    const matchLines = () => {
+      const lines = [];
+      const total = Math.max(matchSizes.a, matchSizes.b);
+      for (let k = 0; k < total; k++) {
+        const pair = pairAt(k);
+        const text = (side) => (!side.exists ? '(상대 없음)' : side.person ? side.person.name + (side.wrapped ? ' (겹침)' : '') : '?');
+        lines.push(`${k + 1}. ${text(pair.a)} — ${text(pair.b)}`);
+      }
+      return lines;
+    };
+
+    const beginMatch = () => {
+      if (!isMatchMode()) return;
+      const teams = getTeams();
+      matchSizes = { a: teams.aCount, b: teams.bCount };
+      matchArrivals = { a: [], b: [] };
+      matchActive = true;
+      renderMatch();
+    };
+
+    const resetMatch = () => {
+      matchArrivals = { a: [], b: [] };
+      matchActive = false;
+      renderMatch();
+    };
+
+    window.roulette.addEventListener('finish', (e) => {
+      if (!matchActive) return;
+      matchArrivals[e.detail.hue < 180 ? 'a' : 'b'].push(e.detail);
+      renderMatch();
+    });
+
+    document.addEventListener('names-ready', () => {
+      if (window.roulette.isRunning) return;
+      const teams = getTeams();
+      matchSizes = { a: teams.aCount, b: teams.bCount };
+      matchArrivals = { a: [], b: [] };
+      renderMatch();
+    });
+
+    const wrapButtons = [...document.querySelectorAll('.match-wrap-btn')];
+    const showWrap = () => wrapButtons.forEach((b) => b.classList.toggle('active', b.dataset.wrap === matchWrap));
+    wrapButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        matchWrap = button.dataset.wrap;
+        localStorage.setItem('mbr_match_wrap', matchWrap);
+        showWrap();
+        renderMatch();
+      });
+    });
+    showWrap();
+    {
+      const teams = getTeams();
+      matchSizes = { a: teams.aCount, b: teams.bCount };
+    }
+
     seatPlan = getSeatPlan();
     showTab(activeTab);
 
@@ -738,6 +902,13 @@
         e.detail.entries.forEach((entry, i) => seatPerson(firstRank + i, entry));
         roundActive = false;
         renderSeats();
+      }
+      if (isMatchMode() && e.detail.entries) {
+        // 전원 순위이므로 entries 가 1등부터 끝까지다. 결승선을 안 지난 마지막 구슬도 여기 있다.
+        matchArrivals = { a: [], b: [] };
+        e.detail.entries.forEach((entry) => matchArrivals[entry.hue < 180 ? 'a' : 'b'].push(entry));
+        matchActive = false;
+        renderMatch();
       }
       rememberResult(e.detail);
       updateTransport();
@@ -896,6 +1067,7 @@
   <div class="side-tabs">
     <button type="button" class="side-tab active" data-tab="memo" data-trans>Memo</button>
     <button type="button" class="side-tab" data-tab="seat" data-trans>Seats</button>
+    <button type="button" class="side-tab" data-tab="match" data-trans>Match</button>
   </div>
   <section id="memoPanel" class="side-panel">
     <div class="memo-head">
@@ -923,6 +1095,21 @@
     </div>
     <div id="seatMap" class="seat-map"></div>
     <div class="memo-hint" data-trans>name@3 pins seat 3. Click a seat number to rename it</div>
+  </section>
+  <section id="matchPanel" class="side-panel" hidden>
+    <div class="memo-head">
+      <span class="memo-name" data-trans>Pairs</span>
+    </div>
+    <div class="seat-tools">
+      <label data-trans>Extras pair with</label>
+      <div class="seat-from">
+        <button type="button" class="match-wrap-btn active" data-wrap="front" data-trans>Front side</button>
+        <button type="button" class="match-wrap-btn" data-wrap="back" data-trans>Back side</button>
+      </div>
+      <span id="matchStatus" class="seat-status"></span>
+    </div>
+    <div id="matchList" class="seat-map"></div>
+    <div class="memo-hint" data-trans>Put --- on its own line in the names box: team A above, team B below</div>
   </section>
 </aside>
 <div id="speedControl" class="speed-control">
