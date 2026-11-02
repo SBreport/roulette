@@ -226,16 +226,23 @@ export class Roulette extends EventTarget {
 
   private _calcTimeScale(): number {
     if (!this._stage) return 1;
-    // 선두를 따라갈 때는 도착마다 슬로모션이 걸려 전원 순위 레이스가 늘어지므로 끈다.
-    if (this._followLeader) return 1;
+    // 슬로모션은 카메라가 누굴 따라가든 당첨 순위를 가를 구슬 기준으로 건다.
+    // 첫번째 규칙이면 1등이 들어오는 순간, 마지막 규칙이면 꼴찌가 갈리는 순간 한 번.
     const targetIndex = this._winnerRank - this._winners.length;
-    if (this._winners.length < this._winnerRank + 1 && this._goalDist < zoomThreshold && this._marbles[targetIndex]) {
-      if (
-        this._marbles[targetIndex].y > this._stage.zoomY - zoomThreshold * 1.2 &&
-        (this._marbles[targetIndex - 1] || this._marbles[targetIndex + 1])
-      ) {
-        return Math.max(0.2, this._goalDist / zoomThreshold);
-      }
+    const target = this._marbles[targetIndex];
+    if (!target || this._winners.length >= this._winnerRank + 1) return 1;
+    // 다음 도착이 목표 순위를 확정할 때만. 꼴찌 규칙은 둘 남았을 때(끝에서 두 번째 도착)가 그 순간이다.
+    const lastRule = this._winnerRank === this._totalMarbleCount - 1;
+    const decidingNow =
+      this._winners.length === this._winnerRank || (lastRule && this._winners.length === this._winnerRank - 1);
+    if (!decidingNow) return 1;
+    const goalDist = Math.abs(this._stage.zoomY - target.y);
+    if (
+      goalDist < zoomThreshold &&
+      target.y > this._stage.zoomY - zoomThreshold * 1.2 &&
+      (this._marbles[targetIndex - 1] || this._marbles[targetIndex + 1])
+    ) {
+      return Math.max(0.2, goalDist / zoomThreshold);
     }
     return 1;
   }

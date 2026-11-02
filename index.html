@@ -274,7 +274,7 @@
   let customRank = 1;
   // 우측 패널의 활성 탭. '자리' 탭이면 당첨 규칙이 자리 배치용으로 바뀐다.
   const isPhone = window.matchMedia('(max-width: 750px)').matches;
-  const allowedTabs = isPhone ? ['seat', 'match', 'settings'] : ['seat', 'match', 'duel', 'settings'];
+  const allowedTabs = isPhone ? ['seat', 'match'] : ['seat', 'match', 'duel'];
   let activeTab = allowedTabs.includes(localStorage.getItem('mbr_tab')) ? localStorage.getItem('mbr_tab') : 'memo';
   const isSeatMode = () => activeTab === 'seat';
   // 매칭(한 판)과 듀얼(두 판)은 짝 짓는 규칙이 같다. 구슬을 어느 판에 두느냐만 다르다.
@@ -643,7 +643,6 @@
       seat: document.querySelector('#seatPanel'),
       match: document.querySelector('#matchPanel'),
       duel: document.querySelector('#duelPanel'),
-      settings: document.querySelector('#settingsPanel'),
     };
     const tabButtons = [...document.querySelectorAll('.side-tab')];
     let seatPlan = { seats: 0, fixed: {}, racers: [], fixedCount: 0 };
@@ -843,6 +842,14 @@
     };
 
     tabButtons.forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
+
+    // 폰에서는 시트가 낮아 설정 구획을 접어 두고 머리글로 펼친다. 데스크톱은 항상 펼침.
+    const settingsDock = document.querySelector('#settingsDock');
+    if (isPhone) settingsDock.classList.add('collapsed');
+    document.querySelector('#btnSettingsToggle').addEventListener('click', () => {
+      settingsDock.classList.toggle('collapsed');
+      document.querySelector('#btnSettingsToggle').textContent = settingsDock.classList.contains('collapsed') ? '▲' : '▼';
+    });
 
     // 목표 인원이 찬 뒤에도 구슬은 계속 결승선을 지난다. 이번 판 인원까지만 앉힌다.
     window.roulette.addEventListener('finish', (e) => {
@@ -1211,7 +1218,6 @@
     <button type="button" class="side-tab" data-tab="seat" data-trans>Seats</button>
     <button type="button" class="side-tab" data-tab="match" data-trans>Match</button>
     <button type="button" class="side-tab side-tab-duel" data-tab="duel" data-trans>Duel</button>
-    <button type="button" class="side-tab" data-tab="settings" data-trans>Settings</button>
   </div>
   <section id="memoPanel" class="side-panel">
     <div class="memo-head">
@@ -1270,7 +1276,11 @@
     <div id="duelList" class="seat-map"></div>
     <div class="memo-hint" data-trans>Two boards race at once; A's k-th arrival pairs with B's k-th</div>
   </section>
-  <section id="settingsPanel" class="side-panel settings" hidden>
+  <section id="settingsDock" class="settings side-settings">
+    <div class="memo-head">
+      <span class="memo-name" data-trans>Settings</span>
+      <button type="button" id="btnSettingsToggle" class="memo-btn side-settings-toggle">▲</button>
+    </div>
     <div class="settings-body">
       <input type="text" id="in_title" placeholder="Title (e.g. lunch menu)" data-trans="placeholder" />
       <div class="right">
