@@ -43,6 +43,11 @@ export class Roulette extends EventTarget {
   // 당첨 인원. 당첨자는 _winnerRank 에서 이 수만큼 거슬러 올라간 연속 구간이다.
   // 앞에서 3명이면 rank=2(0-based)/count=3, 뒤에서 3명이면 rank=total-1/count=3.
   private _winnerCount = 1;
+  // 카메라·줌·막판 슬로모션이 따라갈 구슬. 기본은 목표 순위를 가져갈 구슬(1등 뽑기면 선두,
+  // 전원 순위면 꼴찌). 매칭·듀얼처럼 전원 순위지만 선두를 보고 싶을 때 선두로 바꾼다.
+  private _followLeader = false;
+  // 당첨 표시를 구석 패널로 그릴지, 판 전체를 덮어 크게 그릴지.
+  private _resultStyle: 'corner' | 'full' = 'corner';
   private _totalMarbleCount = 0;
   private _goalDist: number = Infinity;
   private _isRunning: boolean = false;
@@ -145,7 +150,7 @@ export class Roulette extends EventTarget {
         marbles: this._marbles,
         stage: this._stage,
         needToZoom: this._goalDist < zoomThreshold,
-        targetIndex: this._winners.length > 0 ? this._winnerRank - this._winners.length : 0,
+        targetIndex: this._followLeader || this._winners.length === 0 ? 0 : this._winnerRank - this._winners.length,
       });
     }
 
@@ -192,7 +197,7 @@ export class Roulette extends EventTarget {
       }
     }
 
-    const targetIndex = this._winnerRank - this._winners.length;
+    const targetIndex = this._followLeader ? 0 : this._winnerRank - this._winners.length;
     const topY = this._marbles[targetIndex] ? this._marbles[targetIndex].y : 0;
     this._goalDist = Math.abs(this._stage.zoomY - topY);
     this._timeScale = this._calcTimeScale();
@@ -221,8 +226,10 @@ export class Roulette extends EventTarget {
 
   private _calcTimeScale(): number {
     if (!this._stage) return 1;
+    // 선두를 따라갈 때는 도착마다 슬로모션이 걸려 전원 순위 레이스가 늘어지므로 끈다.
+    if (this._followLeader) return 1;
     const targetIndex = this._winnerRank - this._winners.length;
-    if (this._winners.length < this._winnerRank + 1 && this._goalDist < zoomThreshold) {
+    if (this._winners.length < this._winnerRank + 1 && this._goalDist < zoomThreshold && this._marbles[targetIndex]) {
       if (
         this._marbles[targetIndex].y > this._stage.zoomY - zoomThreshold * 1.2 &&
         (this._marbles[targetIndex - 1] || this._marbles[targetIndex + 1])
@@ -250,6 +257,7 @@ export class Roulette extends EventTarget {
       effects: this._effects,
       winnerRank: this._winnerRank,
       winnerCount: this._winnerCount,
+      resultStyle: this._resultStyle,
       // 좁은 화면에서는 씬 캔버스(최소 640px)가 축소돼 붙으므로, 글자 UI 는 그만큼 키워 그린다.
       uiScale: Math.max(1, this._renderer.sizeFactor),
       winner: this._winner,
@@ -461,6 +469,14 @@ export class Roulette extends EventTarget {
 
   public setWinningRank(rank: number) {
     this._winnerRank = rank;
+  }
+
+  public setFollowLeader(value: boolean) {
+    this._followLeader = value;
+  }
+
+  public setResultStyle(style: 'corner' | 'full') {
+    this._resultStyle = style;
   }
 
   public setWinnerCount(count: number) {

@@ -22,6 +22,7 @@ export type RenderParameters = {
   effects: GameObject[];
   winnerRank: number;
   winnerCount: number;
+  resultStyle: 'corner' | 'full';
   uiScale: number;
   winner: Marble | null;
   winnerList: Marble[];
@@ -355,6 +356,10 @@ export class RouletteRenderer {
   private renderWinner(params: RenderParameters) {
     const { winner, winnerList, theme } = params;
     if (!winner) return;
+    if (params.resultStyle === 'full' && winnerList.length > 0) {
+      this.renderWinnerFull(params);
+      return;
+    }
     this.ctx.save();
     this.ctx.fillStyle = theme.winnerBackground;
     this.ctx.fillRect(
@@ -410,6 +415,59 @@ export class RouletteRenderer {
     }
     this.ctx.fillText(winner.name, textRightX, this._sceneCanvas.height - 55 + WINNER_TEXT_OFFSET);
     this.ctx.restore();
+  }
+
+  // 판 전체를 덮는 결과. 듀얼처럼 판이 작을 때 한 판의 결과를 한눈에 보이게 한다.
+  private renderWinnerFull({ winnerList, winnerRank, winnerCount, theme }: RenderParameters) {
+    const W = this._sceneCanvas.width;
+    const H = this._sceneCanvas.height;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = theme.background === 'black' ? 'rgba(0, 0, 0, 0.82)' : 'rgba(255, 255, 255, 0.88)';
+    ctx.fillRect(0, 0, W, H);
+
+    const firstRank = winnerRank - winnerCount + 2;
+    const padding = Math.round(W * 0.06);
+    const headingSize = Math.round(Math.min(44, H * 0.08));
+    const top = padding + headingSize;
+    // 12명이 넘으면 두 열로 나눠 글자를 키운다.
+    const cols = winnerList.length > 12 ? 2 : 1;
+    const perCol = Math.ceil(winnerList.length / cols);
+    const rowHeight = Math.max(18, Math.min(64, (H - top - padding) / perCol));
+    const fontSize = Math.floor(rowHeight * 0.58);
+    const colWidth = (W - padding * 2) / cols;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = theme.winnerText;
+    ctx.strokeStyle = theme.winnerOutline;
+    ctx.lineWidth = 3;
+    ctx.font = `bold ${headingSize}px ${fontFamily}`;
+    const heading = `Result (${winnerList.length})`;
+    if (theme.winnerOutline) ctx.strokeText(heading, padding, padding + headingSize * 0.8);
+    ctx.fillText(heading, padding, padding + headingSize * 0.8);
+
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
+    ctx.lineWidth = 2;
+    winnerList.forEach((marble, i) => {
+      const col = Math.floor(i / perCol);
+      const row = i % perCol;
+      const x = padding + col * colWidth;
+      const centerY = top + rowHeight * row + rowHeight / 2;
+      const dotRadius = fontSize * 0.32;
+      ctx.beginPath();
+      ctx.arc(x + dotRadius, centerY, dotRadius, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${marble.hue} 100% ${theme.marbleLightness}%)`;
+      ctx.fill();
+      const text = `#${firstRank + i}  ${marble.name}`;
+      const baseline = centerY + fontSize * 0.35;
+      if (theme.winnerOutline) {
+        ctx.strokeStyle = theme.winnerOutline;
+        ctx.strokeText(text, x + dotRadius * 2 + 12, baseline);
+      }
+      ctx.fillStyle = theme.winnerText;
+      ctx.fillText(text, x + dotRadius * 2 + 12, baseline);
+    });
+    ctx.restore();
   }
 
   // 당첨자가 여러 명일 때: 큰 이름 하나 대신 순위와 함께 목록으로 그린다.

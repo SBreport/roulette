@@ -162,6 +162,20 @@
     };
   }
 
+  // 레이스 중에는 입력칸을 감추고 버튼줄만 남긴다. 세 패널에 같이 건다.
+  function setPanelsHidden(hidden) {
+    ['#settings', '#settingsB', '#globals'].forEach((selector) => {
+      document.querySelector(selector).classList.toggle('hide', hidden);
+    });
+  }
+
+  // 오른쪽 판 구슬만 다시 만든다. 왼쪽 판이 도는 동안 B 이름을 고칠 때 쓴다.
+  function rebuildEngineB() {
+    if (!engineBReady() || engineB().isRunning) return;
+    const duel = isDuel() ? getDuelTeams() : null;
+    engineB().setMarbles(duel ? duel.bRacers : [], duel ? duel.bHues : []);
+  }
+
   function getReady() {
     const plan = getSeatPlan();
     // 자리 모드에서만 고정된 사람이 빠진다. 그냥 추첨이면 @번호는 무시하고 전원 굴린다.
@@ -170,8 +184,8 @@
     const racers = duel ? duel.aRacers : teams ? teams.racers : isSeatMode() ? plan.racers : plan.everyone;
     const hues = duel ? duel.aHues : teams ? teams.hues : isSeatMode() ? plan.racerHues : plan.everyoneHues;
     window.roulette.setMarbles(racers, hues);
-    if (engineBReady()) engineB().setMarbles(duel ? duel.bRacers : [], duel ? duel.bHues : []);
-    ready = duel ? racers.length > 0 && duel.bRacers.length > 0 : racers.length > 0;
+    rebuildEngineB();
+    ready = racers.length > 0;
     // 구분선('---')을 살려야 하므로 입력칸 내용을 그대로 저장한다.
     localStorage.setItem('mbr_names', document.querySelector('#in_names').value);
     applyWinnerSelection();
@@ -208,6 +222,14 @@
     } else {
       count = Math.min(count, Math.max(total, 1));
       rank = winnerType === 'last' ? Math.max(total, 1) : count;
+    }
+
+    // 매칭·듀얼은 선두를, 자리 '앞에서'도 선두를 따라간다. '뒤에서'와 일반 추첨은 목표 순위 구슬.
+    window.roulette.setFollowLeader(matchMode || (seatMode && seatFrom === 'first'));
+    window.roulette.setResultStyle(isDuel() ? 'full' : 'corner');
+    if (engineBReady()) {
+      engineB().setFollowLeader(true);
+      engineB().setResultStyle('full');
     }
 
     ['.btn-first-winner', '.btn-last-winner', '#in_winningRank', '#in_winnerCount'].forEach((selector) => {
@@ -364,9 +386,13 @@
     const updateTransport = () => {
       const running = bothEngines().some((engine) => engine.isRunning);
       const paused = bothEngines().some((engine) => engine.isPaused);
-      document.querySelector('#btnStart').disabled = running;
+      const runningA = window.roulette.isRunning;
+      const runningB = engineBReady() && engineB().isRunning;
+      document.querySelector('#btnStart').disabled = runningA;
       // 레이스 중에 섞으면 구슬이 새로 만들어져 진행이 깨진다.
-      document.querySelector('#btnShuffle').disabled = running;
+      document.querySelector('#btnShuffle').disabled = runningA;
+      document.querySelector('#btnStartB').disabled = runningB;
+      document.querySelector('#btnShuffleB').disabled = runningB;
       btnPause.disabled = !running;
       pauseIcon.classList.toggle('pause', !paused);
       pauseIcon.classList.toggle('play', paused);
@@ -384,13 +410,34 @@
       }
       cancelSettingsTimer();
       beginSeatRound();
-      beginMatch();
-      document.querySelector('#settings').classList.add('hide');
+      if (isDuel()) beginMatchSide('a');
+      else beginMatch();
+      hideDuelResult();
+      setPanelsHidden(true);
       window.roulette.startRecording().then(() => {
         // shortcut: 녹화는 왼쪽 판만, 오른쪽 판까지 녹화하려면 레코더를 합쳐야 한다
-        bothEngines().forEach((engine) => engine.start());
+        window.roulette.start();
         updateTransport();
       });
+    });
+
+    // 오른쪽 판은 따로 출발한다.
+    document.querySelector('#btnStartB').addEventListener('click', () => {
+      if (!isDuel() || !engineBReady() || engineB().isRunning) return;
+      if (engineB().getCount() === 0) {
+        simpleToast('B팀 이름을 입력하세요');
+        return;
+      }
+      cancelSettingsTimer();
+      beginMatchSide('b');
+      hideDuelResult();
+      setPanelsHidden(true);
+      engineB().start();
+      updateTransport();
+    });
+
+    document.querySelector('#btnShuffleB').addEventListener('click', () => {
+      rebuildEngineB();
     });
 
     btnPause.addEventListener('click', () => {
@@ -403,10 +450,11 @@
       cancelSettingsTimer();
       abortSeatRound();
       resetMatch();
+      hideDuelResult();
       bothEngines().forEach((engine) => engine.stopRace());
       // 구슬을 이름 목록 기준으로 다시 만들면 시작 직전 상태로 돌아간다.
       getReady();
-      document.querySelector('#settings').classList.remove('hide');
+      setPanelsHidden(false);
       updateTransport();
     });
 
@@ -757,6 +805,8 @@
         panel.hidden = name !== tab;
       });
       document.documentElement.classList.toggle('duel', tab === 'duel');
+      document.querySelector('#settingsB').hidden = tab !== 'duel';
+      if (tab !== 'duel') hideDuelResult();
       if (tab === 'duel') ensureEngineB();
       // 자리 모드는 고정·착석한 사람을 굴리지 않으므로 구슬을 다시 만든다. 진행 중엔 건드리지 않는다.
       if (!window.roulette.isRunning) getReady();
@@ -914,10 +964,44 @@
       ready = false;
       rememberResult(detail);
       updateTransport();
+      showDuelResult();
       settingsTimer = setTimeout(() => {
         settingsTimer = null;
-        document.querySelector('#settings').classList.remove('hide');
+        setPanelsHidden(false);
       }, 3000);
+    };
+
+    // (a) 두 판이 다 끝났을 때 판 전체를 덮는 짝 목록.
+    const duelResult = document.querySelector('#duelResult');
+    const showDuelResult = () => {
+      const total = Math.max(matchSizes.a, matchSizes.b);
+      const cell = (side) => {
+        if (!side.exists) return '<span class="dr-name none">상대 없음</span>';
+        if (!side.person) return '<span class="dr-name"></span>';
+        return `<span class="dr-name${side.wrapped ? ' wrapped' : ''}" style="--seat-color:hsl(${side.person.hue} 100% 70%)">${escapeHtml(side.person.name)}${side.wrapped ? '<small>겹침</small>' : ''}</span>`;
+      };
+      const rows = [];
+      for (let k = 0; k < total; k++) {
+        const pair = pairAt(k);
+        rows.push(`<div class="dr-row"><span class="dr-no">${k + 1}</span>${cell(pair.a)}<span class="dr-dash">—</span>${cell(pair.b)}</div>`);
+      }
+      document.querySelector('#duelResultBody').innerHTML = rows.join('');
+      duelResult.classList.toggle('two-col', total > 10);
+      duelResult.hidden = false;
+    };
+    const hideDuelResult = () => {
+      duelResult.hidden = true;
+    };
+    document.querySelector('#btnDuelResultClose').addEventListener('click', hideDuelResult);
+
+    // 듀얼: 한 판씩 따로 출발한다. 그쪽 기록만 비우고, 다른 판이 이미 끝났으면 그대로 둔다.
+    const beginMatchSide = (side) => {
+      const teams = currentTeams();
+      matchSizes = { a: teams.aCount, b: teams.bCount };
+      matchArrivals[side] = [];
+      duelGoals[side] = false;
+      matchActive = true;
+      renderMatch();
     };
 
     const beginMatch = () => {
@@ -947,7 +1031,11 @@
     namesB.value = localStorage.getItem('mbr_names_b') || '';
     const onNamesB = () => {
       localStorage.setItem('mbr_names_b', namesB.value);
-      if (!window.roulette.isRunning) getReady();
+      if (window.roulette.isRunning) rebuildEngineB();
+      else getReady();
+      const teams = currentTeams();
+      matchSizes = { a: teams.aCount, b: teams.bCount };
+      renderMatch();
     };
     namesB.addEventListener('input', (e) => {
       if (e.isComposing) return;
@@ -1018,7 +1106,7 @@
         settingsTimer = null;
         // 나눠서 굴릴 때 다음 판을 바로 시작할 수 있도록, 남은 사람으로 구슬을 다시 만든다.
         if (seatRound && isSeatMode()) getReady();
-        document.querySelector('#settings').classList.remove('hide');
+        setPanelsHidden(false);
       }, 3000);
     });
 
@@ -1083,68 +1171,9 @@
   }
 </script>
 <h1 class="sr-only">Marble Roulette - 랜덤 추첨기</h1>
-<div id="settings" class="settings">
-  <div class="right">
-    <button id="btnToggleSettings" class="btn-toggle-settings">
-      <span data-trans>Settings</span>
-      <i class="toggle-arrow">▲</i>
-    </button>
-    <div class="collapsible-rows collapsed">
-      <div class="row">
-        <label for='sltMap'>
-          <i class="icon map"></i>
-          <span data-trans>Map</span>
-        </label>
-        <select id="sltMap"></select>
-      </div>
-      <div class="row row-toggles">
-        <div class='toggle-item'>
-          <label for='chkAutoRecording'>
-            <i class="icon record"></i>
-            <span data-trans>Recording</span>
-          </label>
-          <input type="checkbox" id="chkAutoRecording" />
-        </div>
-        <div class='toggle-item'>
-          <label for='chkSkill'>
-            <i class="icon bomb"></i>
-            <span data-trans>Using skills</span>
-          </label>
-          <input type="checkbox" id="chkSkill" checked />
-        </div>
-      </div>
-      <div class="row">
-        <label>
-          <i class="icon trophy"></i>
-          <span data-trans>The winner is</span>
-        </label>
-        <div class="btn-group">
-          <button class="btn-winner btn-first-winner active" data-trans>First</button>
-          <button class="btn-winner btn-last-winner" data-trans>Last</button>
-          <input type="number" id="in_winningRank" value="1" min="1" />
-        </div>
-      </div>
-      <div class="row">
-        <label for='in_winnerCount'>
-          <i class="icon trophy"></i>
-          <span data-trans>Number of winners</span>
-        </label>
-        <div class="btn-group">
-          <input type="number" id="in_winnerCount" value="1" min="1" />
-        </div>
-      </div>
-      <div class="row row-theme">
-        <div class='theme'>
-          <i class='icon sun'></i>
-          <input type='checkbox' id='chkDarkMode' checked />
-          <i class='icon moon'></i>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="left">
+<div id="dock" class="dock">
+  <div id="settings" class="settings board-panel">
     <h3 data-trans>Enter names below</h3>
-    <input type="text" id="in_title" placeholder="Title (e.g. lunch menu)" data-trans="placeholder" />
     <textarea id="in_names" placeholder="Input names separated by commas or line feed here" data-trans="placeholder">수박*2,키위*2,귤*2</textarea>
     <div class="actions">
       <button id="btnShuffle">
@@ -1155,15 +1184,101 @@
         <i class="icon play"></i>
         <span data-trans>Start</span>
       </button>
-      <button id="btnPause" class="btn-icon-only" title="일시정지">
-        <i class="icon pause"></i>
-      </button>
-      <button id="btnStop" class="btn-icon-only" title="정지">
-        <i class="icon stop"></i>
-      </button>
-      <button id="btnMemoResult" data-trans>Add result</button>
     </div>
   </div>
+  <div class="dock-right">
+    <div id="settingsB" class="settings board-panel" hidden>
+      <h3 data-trans>Team B names</h3>
+      <textarea id="in_names_b" placeholder="B팀 이름을 쉼표나 엔터로 구분"></textarea>
+      <div class="actions">
+        <button id="btnShuffleB">
+          <i class="icon shuffle"></i>
+          <span data-trans>Shuffle</span>
+        </button>
+        <button id="btnStartB">
+          <i class="icon play"></i>
+          <span data-trans>Start</span>
+        </button>
+      </div>
+    </div>
+    <div id="globals" class="settings">
+      <input type="text" id="in_title" placeholder="Title (e.g. lunch menu)" data-trans="placeholder" />
+      <div class="right">
+        <button id="btnToggleSettings" class="btn-toggle-settings">
+          <span data-trans>Settings</span>
+          <i class="toggle-arrow">▲</i>
+        </button>
+        <div class="collapsible-rows collapsed">
+          <div class="row">
+            <label for='sltMap'>
+              <i class="icon map"></i>
+              <span data-trans>Map</span>
+            </label>
+            <select id="sltMap"></select>
+          </div>
+          <div class="row row-toggles">
+            <div class='toggle-item'>
+              <label for='chkAutoRecording'>
+                <i class="icon record"></i>
+                <span data-trans>Recording</span>
+              </label>
+              <input type="checkbox" id="chkAutoRecording" />
+            </div>
+            <div class='toggle-item'>
+              <label for='chkSkill'>
+                <i class="icon bomb"></i>
+                <span data-trans>Using skills</span>
+              </label>
+              <input type="checkbox" id="chkSkill" checked />
+            </div>
+          </div>
+          <div class="row">
+            <label>
+              <i class="icon trophy"></i>
+              <span data-trans>The winner is</span>
+            </label>
+            <div class="btn-group">
+              <button class="btn-winner btn-first-winner active" data-trans>First</button>
+              <button class="btn-winner btn-last-winner" data-trans>Last</button>
+              <input type="number" id="in_winningRank" value="1" min="1" />
+            </div>
+          </div>
+          <div class="row">
+            <label for='in_winnerCount'>
+              <i class="icon trophy"></i>
+              <span data-trans>Number of winners</span>
+            </label>
+            <div class="btn-group">
+              <input type="number" id="in_winnerCount" value="1" min="1" />
+            </div>
+          </div>
+          <div class="row row-theme">
+            <div class='theme'>
+              <i class='icon sun'></i>
+              <input type='checkbox' id='chkDarkMode' checked />
+              <i class='icon moon'></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnPause" class="btn-icon-only" title="일시정지">
+          <i class="icon pause"></i>
+        </button>
+        <button id="btnStop" class="btn-icon-only" title="정지">
+          <i class="icon stop"></i>
+        </button>
+        <button id="btnMemoResult" data-trans>Add result</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="duelResult" class="duel-result" hidden>
+  <div class="duel-result-head">
+    <span class="duel-result-title">매칭 결과</span>
+    <button type="button" id="btnDuelResultClose" class="memo-btn">닫기</button>
+  </div>
+  <div id="duelResultBody" class="duel-result-body"></div>
 </div>
 <aside id="memo" class="memo">
   <div class="side-tabs">
@@ -1217,10 +1332,6 @@
   <section id="duelPanel" class="side-panel" hidden>
     <div class="memo-head">
       <span class="memo-name" data-trans>Duel</span>
-    </div>
-    <div class="duel-names">
-      <label for="in_names_b" data-trans>Team B names (left box is team A)</label>
-      <textarea id="in_names_b" placeholder="B팀 이름을 쉼표나 엔터로 구분"></textarea>
     </div>
     <div class="seat-tools">
       <label data-trans>Extras pair with</label>

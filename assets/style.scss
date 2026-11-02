@@ -155,7 +155,7 @@ div.copyright a {
 }
 
 
-#settings {
+.settings {
   position: fixed;
   bottom: 1rem;
   left: 1rem;
@@ -178,9 +178,9 @@ div.copyright a {
   &.hide {
     background: none;
 
-    > .left > h3,
-    > .left > #in_title,
-    > .left > textarea,
+    > h3,
+    > #in_title,
+    > textarea,
     > .right {
       opacity: 0;
       visibility: hidden;
@@ -487,12 +487,11 @@ div.copyright a {
 }
 
 @media screen and (max-width: 750px) {
-  #settings {
-    bottom: 60px;
+  .settings {
     display: block;
     min-width: 0;
     max-width: 100%;
-    width: calc(100% - 2rem);
+    width: 100%;
     overflow: hidden;
     opacity: 1;
     visibility: visible;
@@ -830,7 +829,7 @@ div.toast {
 
 
 // 아이콘만 있는 조작 버튼(일시정지·정지)
-#settings .actions .btn-icon-only {
+.settings .actions .btn-icon-only {
   padding: 5px 8px;
 
   .icon {
@@ -839,7 +838,7 @@ div.toast {
   }
 }
 
-#settings .actions button:disabled {
+.settings .actions button:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -1119,17 +1118,17 @@ div.toast {
 
   // 레이스 중이거나 시트가 열려 있으면 설정 패널에서 버튼줄만 남긴다. 원본의 모바일 규칙은
   // 시작하면 패널을 통째로 숨겨서 폰에서는 일시정지·정지를 누를 방법이 없었다.
-  #settings.hide,
-  :root:not(.memo-collapsed) #settings {
+  .settings.hide,
+  :root:not(.memo-collapsed) .settings {
     opacity: 1;
     visibility: visible;
     background: none;
     // 보이지 않는 패널 상자가 캔버스 터치를 가로채지 않도록 버튼줄만 터치를 받는다.
     pointer-events: none;
 
-    > .left > h3,
-    > .left > #in_title,
-    > .left > textarea,
+    > h3,
+    > #in_title,
+    > textarea,
     > .right {
       opacity: 0;
       visibility: hidden;
@@ -1141,7 +1140,7 @@ div.toast {
   }
 
   // 시트가 열려 있으면 버튼줄을 시트 바로 위로 올린다. 안 그러면 시트 밑에 깔린다.
-  :root:not(.memo-collapsed) #settings {
+  :root:not(.memo-collapsed) .dock {
     bottom: calc(55vh + 6px);
     bottom: calc(55dvh + 6px);
   }
@@ -1150,7 +1149,7 @@ div.toast {
   .memo-body,
   .seat-tools input,
   .seat .seat-label-input,
-  #settings #in_title {
+  .settings #in_title {
     font-size: 16px;
   }
 
@@ -1274,5 +1273,231 @@ canvas:nth-of-type(2) {
 @media screen and (max-width: 750px) {
   .side-tab-duel {
     display: none;
+  }
+}
+
+
+// ---------------------------------------------------------------- 하단 독
+// 왼쪽 판 상자 · (듀얼이면) 오른쪽 판 상자 · 전역 설정. 판 두 개 폭에 맞춰 반씩 나눈다.
+.dock {
+  position: fixed;
+  left: 1rem;
+  right: calc(var(--memo-w) + 1rem);
+  bottom: 1rem;
+  z-index: 999;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: end;
+  pointer-events: none;
+
+  > *,
+  .dock-right > * {
+    pointer-events: auto;
+  }
+}
+
+.dock-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 1rem;
+  min-width: 0;
+  pointer-events: none;
+}
+
+:root.duel .dock-right {
+  justify-content: space-between;
+}
+
+.dock .settings {
+  position: static;
+  display: block;
+  min-width: 0;
+  max-width: none;
+}
+
+.board-panel {
+  width: min(380px, 100%);
+
+  textarea {
+    min-height: 4rem;
+  }
+}
+
+#settingsB[hidden] {
+  display: none;
+}
+
+// 듀얼: 오른쪽 절반에 B 상자와 전역 설정이 같이 서야 한다. 전역 설정은 접어 두고
+// (폰용 Settings 토글을 그대로 켠다) 펼칠 때만 제 폭을 쓴다.
+:root.duel {
+  #settingsB {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 380px;
+  }
+
+  #globals {
+    width: auto;
+    min-width: 230px;
+
+    .btn-toggle-settings {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-bottom: 6px;
+      cursor: pointer;
+      font-size: 11pt;
+
+      .toggle-arrow {
+        font-style: normal;
+      }
+    }
+
+    .collapsible-rows.collapsed {
+      display: none;
+    }
+
+    &:has(.collapsible-rows:not(.collapsed)) {
+      width: 440px;
+    }
+  }
+}
+
+#globals {
+  flex: 0 0 auto;
+  // 설정 행(라벨 150px + 토글 두 개)이 한 줄에 들어가는 폭
+  width: min(440px, 100%);
+
+  #in_title {
+    margin-bottom: 6px;
+  }
+
+  .right {
+    order: 0;
+  }
+
+  .actions {
+    display: flex;
+    gap: 2px;
+    margin-top: 6px;
+    justify-content: flex-end;
+  }
+}
+
+// (a) 두 판이 다 끝났을 때 판 전체를 덮는 결과
+.duel-result {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: calc(100% - var(--memo-w));
+  height: 100%;
+  z-index: 998;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--memo-bg) 90%, transparent);
+  color: var(--memo-fg);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.duel-result-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--memo-border);
+
+  .duel-result-title {
+    font-size: 28px;
+    font-weight: 700;
+  }
+}
+
+.duel-result-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 28px 140px;
+  display: grid;
+  grid-template-columns: 1fr;
+  column-gap: 40px;
+
+  .two-col & {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.dr-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--memo-border);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.dr-no {
+  font-size: 18px;
+  text-align: right;
+  color: var(--memo-muted);
+}
+
+.dr-dash {
+  text-align: center;
+  color: var(--memo-muted);
+}
+
+.dr-name {
+  --seat-color: var(--memo-fg);
+  color: var(--seat-color);
+  overflow-wrap: anywhere;
+
+  &.none {
+    font-weight: 400;
+    font-size: 20px;
+    color: var(--memo-muted);
+  }
+
+  small {
+    margin-left: 8px;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--memo-accent);
+    color: #fff;
+    vertical-align: middle;
+  }
+}
+
+@media screen and (max-width: 750px) {
+  .dock {
+    left: 1rem;
+    right: 1rem;
+    bottom: 60px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .dock-right {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .board-panel {
+    width: 100%;
+  }
+
+  #globals .actions {
+    justify-content: flex-start;
   }
 }
