@@ -226,16 +226,11 @@ export class Roulette extends EventTarget {
 
   private _calcTimeScale(): number {
     if (!this._stage) return 1;
-    // 슬로모션은 카메라가 누굴 따라가든 당첨 순위를 가를 구슬 기준으로 건다.
-    // 첫번째 규칙이면 1등이 들어오는 순간, 마지막 규칙이면 꼴찌가 갈리는 순간 한 번.
+    // 원본 규칙 그대로: 당첨 순위를 가를 구슬이 결승 근처에 있고 다툴 상대가 있으면 느려진다.
+    // 카메라가 선두를 따라가더라도 거리는 이 구슬 기준으로 잰다.
     const targetIndex = this._winnerRank - this._winners.length;
     const target = this._marbles[targetIndex];
     if (!target || this._winners.length >= this._winnerRank + 1) return 1;
-    // 다음 도착이 목표 순위를 확정할 때만. 꼴찌 규칙은 둘 남았을 때(끝에서 두 번째 도착)가 그 순간이다.
-    const lastRule = this._winnerRank === this._totalMarbleCount - 1;
-    const decidingNow =
-      this._winners.length === this._winnerRank || (lastRule && this._winners.length === this._winnerRank - 1);
-    if (!decidingNow) return 1;
     const goalDist = Math.abs(this._stage.zoomY - target.y);
     if (
       goalDist < zoomThreshold &&

@@ -1374,7 +1374,7 @@ canvas:nth-of-type(2) {
   padding: 16px 28px 140px;
   display: grid;
   grid-template-columns: 1fr;
-  column-gap: 40px;
+  column-gap: 56px;
 
   .two-col & {
     grid-template-columns: 1fr 1fr;
@@ -1382,23 +1382,33 @@ canvas:nth-of-type(2) {
 }
 
 .dr-row {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 36px minmax(0, 1fr);
+  // 짝이 가운데 대시에서 만난다. A 는 대시 쪽으로 오른쪽 정렬, B 는 왼쪽 정렬.
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 12px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--memo-border);
   font-size: 28px;
   font-weight: 700;
+
+  > .dr-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  > .dr-name:first-of-type {
+    text-align: right;
+  }
 }
 
 .dr-no {
-  font-size: 18px;
-  text-align: right;
+  flex: 0 0 28px;
+  font-size: 15px;
   color: var(--memo-muted);
 }
 
 .dr-dash {
+  flex: 0 0 28px;
   text-align: center;
   color: var(--memo-muted);
 }
@@ -1406,7 +1416,7 @@ canvas:nth-of-type(2) {
 .dr-name {
   --seat-color: var(--memo-fg);
   color: var(--seat-color);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 
   &.none {
     font-weight: 400;
