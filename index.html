@@ -164,7 +164,7 @@
 
   // 레이스 중에는 입력칸을 감추고 버튼줄만 남긴다. 세 패널에 같이 건다.
   function setPanelsHidden(hidden) {
-    ['#settings', '#settingsB', '#globals'].forEach((selector) => {
+    ['#settings', '#settingsB'].forEach((selector) => {
       document.querySelector(selector).classList.toggle('hide', hidden);
     });
   }
@@ -274,7 +274,7 @@
   let customRank = 1;
   // 우측 패널의 활성 탭. '자리' 탭이면 당첨 규칙이 자리 배치용으로 바뀐다.
   const isPhone = window.matchMedia('(max-width: 750px)').matches;
-  const allowedTabs = isPhone ? ['seat', 'match'] : ['seat', 'match', 'duel'];
+  const allowedTabs = isPhone ? ['seat', 'match', 'settings'] : ['seat', 'match', 'duel', 'settings'];
   let activeTab = allowedTabs.includes(localStorage.getItem('mbr_tab')) ? localStorage.getItem('mbr_tab') : 'memo';
   const isSeatMode = () => activeTab === 'seat';
   // 매칭(한 판)과 듀얼(두 판)은 짝 짓는 규칙이 같다. 구슬을 어느 판에 두느냐만 다르다.
@@ -643,6 +643,7 @@
       seat: document.querySelector('#seatPanel'),
       match: document.querySelector('#matchPanel'),
       duel: document.querySelector('#duelPanel'),
+      settings: document.querySelector('#settingsPanel'),
     };
     const tabButtons = [...document.querySelectorAll('.side-tab')];
     let seatPlan = { seats: 0, fixed: {}, racers: [], fixedCount: 0 };
@@ -1114,13 +1115,6 @@
       simpleToast(e.detail);
     });
 
-    const toggleBtn = document.querySelector('#btnToggleSettings');
-    const collapsible = document.querySelector('.collapsible-rows');
-    toggleBtn.addEventListener('click', () => {
-      collapsible.classList.toggle('collapsed');
-      toggleBtn.querySelector('.toggle-arrow').textContent =
-        collapsible.classList.contains('collapsed') ? '▲' : '▼';
-    });
 
     document.querySelector('#btnShuffle').click();
     updateTransport();
@@ -1201,76 +1195,7 @@
         </button>
       </div>
     </div>
-    <div id="globals" class="settings">
-      <input type="text" id="in_title" placeholder="Title (e.g. lunch menu)" data-trans="placeholder" />
-      <div class="right">
-        <button id="btnToggleSettings" class="btn-toggle-settings">
-          <span data-trans>Settings</span>
-          <i class="toggle-arrow">▲</i>
-        </button>
-        <div class="collapsible-rows collapsed">
-          <div class="row">
-            <label for='sltMap'>
-              <i class="icon map"></i>
-              <span data-trans>Map</span>
-            </label>
-            <select id="sltMap"></select>
-          </div>
-          <div class="row row-toggles">
-            <div class='toggle-item'>
-              <label for='chkAutoRecording'>
-                <i class="icon record"></i>
-                <span data-trans>Recording</span>
-              </label>
-              <input type="checkbox" id="chkAutoRecording" />
-            </div>
-            <div class='toggle-item'>
-              <label for='chkSkill'>
-                <i class="icon bomb"></i>
-                <span data-trans>Using skills</span>
-              </label>
-              <input type="checkbox" id="chkSkill" checked />
-            </div>
-          </div>
-          <div class="row">
-            <label>
-              <i class="icon trophy"></i>
-              <span data-trans>The winner is</span>
-            </label>
-            <div class="btn-group">
-              <button class="btn-winner btn-first-winner active" data-trans>First</button>
-              <button class="btn-winner btn-last-winner" data-trans>Last</button>
-              <input type="number" id="in_winningRank" value="1" min="1" />
-            </div>
-          </div>
-          <div class="row">
-            <label for='in_winnerCount'>
-              <i class="icon trophy"></i>
-              <span data-trans>Number of winners</span>
-            </label>
-            <div class="btn-group">
-              <input type="number" id="in_winnerCount" value="1" min="1" />
-            </div>
-          </div>
-          <div class="row row-theme">
-            <div class='theme'>
-              <i class='icon sun'></i>
-              <input type='checkbox' id='chkDarkMode' checked />
-              <i class='icon moon'></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="actions">
-        <button id="btnPause" class="btn-icon-only" title="일시정지">
-          <i class="icon pause"></i>
-        </button>
-        <button id="btnStop" class="btn-icon-only" title="정지">
-          <i class="icon stop"></i>
-        </button>
-        <button id="btnMemoResult" data-trans>Add result</button>
-      </div>
-    </div>
+
   </div>
 </div>
 <div id="duelResult" class="duel-result" hidden>
@@ -1286,6 +1211,7 @@
     <button type="button" class="side-tab" data-tab="seat" data-trans>Seats</button>
     <button type="button" class="side-tab" data-tab="match" data-trans>Match</button>
     <button type="button" class="side-tab side-tab-duel" data-tab="duel" data-trans>Duel</button>
+    <button type="button" class="side-tab" data-tab="settings" data-trans>Settings</button>
   </div>
   <section id="memoPanel" class="side-panel">
     <div class="memo-head">
@@ -1344,11 +1270,75 @@
     <div id="duelList" class="seat-map"></div>
     <div class="memo-hint" data-trans>Two boards race at once; A's k-th arrival pairs with B's k-th</div>
   </section>
+  <section id="settingsPanel" class="side-panel settings" hidden>
+    <div class="settings-body">
+      <input type="text" id="in_title" placeholder="Title (e.g. lunch menu)" data-trans="placeholder" />
+      <div class="right">
+<div class="settings-rows">
+          <div class="row">
+            <label for='sltMap'>
+              <i class="icon map"></i>
+              <span data-trans>Map</span>
+            </label>
+            <select id="sltMap"></select>
+          </div>
+          <div class="row row-toggles">
+            <div class='toggle-item'>
+              <label for='chkAutoRecording'>
+                <i class="icon record"></i>
+                <span data-trans>Recording</span>
+              </label>
+              <input type="checkbox" id="chkAutoRecording" />
+            </div>
+            <div class='toggle-item'>
+              <label for='chkSkill'>
+                <i class="icon bomb"></i>
+                <span data-trans>Using skills</span>
+              </label>
+              <input type="checkbox" id="chkSkill" checked />
+            </div>
+          </div>
+          <div class="row">
+            <label>
+              <i class="icon trophy"></i>
+              <span data-trans>The winner is</span>
+            </label>
+            <div class="btn-group">
+              <button class="btn-winner btn-first-winner active" data-trans>First</button>
+              <button class="btn-winner btn-last-winner" data-trans>Last</button>
+              <input type="number" id="in_winningRank" value="1" min="1" />
+            </div>
+          </div>
+          <div class="row">
+            <label for='in_winnerCount'>
+              <i class="icon trophy"></i>
+              <span data-trans>Number of winners</span>
+            </label>
+            <div class="btn-group">
+              <input type="number" id="in_winnerCount" value="1" min="1" />
+            </div>
+          </div>
+          <div class="row row-theme">
+            <div class='theme'>
+              <i class='icon sun'></i>
+              <input type='checkbox' id='chkDarkMode' checked />
+              <i class='icon moon'></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </aside>
 <div id="speedControl" class="speed-control">
   <button type="button" class="speed-btn active" data-speed="1">1x</button>
   <button type="button" class="speed-btn" data-speed="2">2x</button>
   <button type="button" class="speed-btn" data-speed="4">4x</button>
+  <span class="speed-sep"></span>
+  <button type="button" id="btnPause" class="speed-btn icon-btn" title="일시정지"><i class="icon pause"></i></button>
+  <button type="button" id="btnStop" class="speed-btn icon-btn" title="정지"><i class="icon stop"></i></button>
+  <span class="speed-sep"></span>
+  <button type="button" id="btnMemoResult" class="speed-btn" data-trans>Add result</button>
 </div>
 <button type="button" id="btnMemoToggle" class="memo-toggle" title="메모 접기/펴기">☰</button>
 <div class="copyright">Based on <a href="https://github.com/lazygyu/roulette" target="_blank">Marble Roulette</a> by lazygyu (MIT)

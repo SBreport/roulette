@@ -1329,63 +1329,10 @@ canvas:nth-of-type(2) {
   display: none;
 }
 
-// 듀얼: 오른쪽 절반에 B 상자와 전역 설정이 같이 서야 한다. 전역 설정은 접어 두고
-// (폰용 Settings 토글을 그대로 켠다) 펼칠 때만 제 폭을 쓴다.
-:root.duel {
-  #settingsB {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 380px;
-  }
-
-  #globals {
-    width: auto;
-    min-width: 230px;
-
-    .btn-toggle-settings {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      width: 100%;
-      margin-bottom: 6px;
-      cursor: pointer;
-      font-size: 11pt;
-
-      .toggle-arrow {
-        font-style: normal;
-      }
-    }
-
-    .collapsible-rows.collapsed {
-      display: none;
-    }
-
-    &:has(.collapsible-rows:not(.collapsed)) {
-      width: 440px;
-    }
-  }
-}
-
-#globals {
-  flex: 0 0 auto;
-  // 설정 행(라벨 150px + 토글 두 개)이 한 줄에 들어가는 폭
-  width: min(440px, 100%);
-
-  #in_title {
-    margin-bottom: 6px;
-  }
-
-  .right {
-    order: 0;
-  }
-
-  .actions {
-    display: flex;
-    gap: 2px;
-    margin-top: 6px;
-    justify-content: flex-end;
-  }
+// 듀얼: 오른쪽 절반은 B 상자만 쓴다.
+:root.duel #settingsB {
+  flex: 0 1 380px;
+  min-width: 0;
 }
 
 // (a) 두 판이 다 끝났을 때 판 전체를 덮는 결과
@@ -1398,7 +1345,8 @@ canvas:nth-of-type(2) {
   z-index: 998;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--memo-bg) 90%, transparent);
+  // 뒤의 판 결과가 비쳐 보이면 두 결과가 겹쳐 읽히지 않는다. 불투명하게 덮는다.
+  background: var(--memo-bg);
   color: var(--memo-fg);
 
   &[hidden] {
@@ -1497,7 +1445,76 @@ canvas:nth-of-type(2) {
     width: 100%;
   }
 
-  #globals .actions {
-    justify-content: flex-start;
+}
+
+
+// ---------------------------------------------------------------- 설정 탭
+// .settings 의 행·스위치 스타일을 그대로 쓰되, 패널 안에서는 떠 있는 상자가 아니다.
+#settingsPanel.settings {
+  position: static;
+  display: flex;
+
+  // id+class 선택자가 .side-panel[hidden] 보다 세서, 여기서 직접 숨겨야 다른 탭 밑에 안 비친다.
+  &[hidden] {
+    display: none;
+  }
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+
+  .settings-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  #in_title {
+    margin-bottom: 10px;
+  }
+
+  .right {
+    order: 0;
+
+    div.row label {
+      color: var(--memo-fg);
+      padding-left: 0;
+      width: 130px;
+    }
+  }
+}
+
+// 위 가운데 묶음: 배속 · 일시정지/정지 · 결과 넣기
+.speed-control {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 2rem);
+
+  .speed-btn {
+    white-space: nowrap;
+  }
+
+  .speed-sep {
+    width: 1px;
+    height: 18px;
+    margin: 0 4px;
+    background: var(--memo-border);
+  }
+
+  .icon-btn {
+    padding: 4px 8px;
+
+    .icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+  }
+
+  .speed-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 }
