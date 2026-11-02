@@ -1001,6 +1001,8 @@
       duelResult.hidden = true;
     };
     document.querySelector('#btnDuelResultClose').addEventListener('click', hideDuelResult);
+    // 처음으로 = 정지. 두 판 모두 출발선으로, 덮개 닫힘, 입력칸 복귀.
+    document.querySelector('#btnDuelAgain').addEventListener('click', () => btnStop.click());
 
     // 듀얼: 한 판씩 따로 출발한다. 그쪽 기록만 비우고, 다른 판이 이미 끝났으면 그대로 둔다.
     const beginMatchSide = (side) => {
@@ -1208,7 +1210,10 @@
 <div id="duelResult" class="duel-result" hidden>
   <div class="duel-result-head">
     <span class="duel-result-title">매칭 결과</span>
-    <button type="button" id="btnDuelResultClose" class="memo-btn">닫기</button>
+    <div class="duel-result-actions">
+      <button type="button" id="btnDuelResultClose" class="dr-btn">결과 보기 닫기</button>
+      <button type="button" id="btnDuelAgain" class="dr-btn primary">처음으로</button>
+    </div>
   </div>
   <div id="duelResultBody" class="duel-result-body"></div>
 </div>

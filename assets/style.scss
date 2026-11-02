@@ -1359,6 +1359,7 @@ canvas:nth-of-type(2) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--memo-border);
 
@@ -1368,48 +1369,67 @@ canvas:nth-of-type(2) {
   }
 }
 
-.duel-result-body {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 16px 28px 140px;
-  display: grid;
-  grid-template-columns: 1fr;
-  column-gap: 56px;
+.duel-result-actions {
+  display: flex;
+  gap: 10px;
+}
 
-  .two-col & {
-    grid-template-columns: 1fr 1fr;
+.dr-btn {
+  border: 1px solid var(--memo-border);
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--memo-btn-bg);
+  color: var(--memo-btn-fg);
+
+  &.primary {
+    background: var(--memo-accent);
+    border-color: var(--memo-accent);
+    color: #fff;
   }
 }
 
+// 짝 카드 격자. 폭에 맞춰 열이 늘어나 12쌍이면 4×3 으로 화면을 채운다.
+.duel-result-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px 28px 140px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+
 .dr-row {
-  // 짝이 가운데 대시에서 만난다. A 는 대시 쪽으로 오른쪽 정렬, B 는 왼쪽 정렬.
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--memo-border);
-  font-size: 28px;
+  justify-content: center;
+  gap: 14px;
+  padding: 22px 16px;
+  border: 1px solid var(--memo-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--memo-fg) 4%, transparent);
+  font-size: 34px;
   font-weight: 700;
 
   > .dr-name {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
-  }
-
-  > .dr-name:first-of-type {
-    text-align: right;
   }
 }
 
 .dr-no {
-  flex: 0 0 28px;
-  font-size: 15px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-right: auto;
+  font-size: 14px;
   color: var(--memo-muted);
 }
 
 .dr-dash {
-  flex: 0 0 28px;
-  text-align: center;
+  flex: 0 0 auto;
   color: var(--memo-muted);
 }
 
@@ -1491,10 +1511,50 @@ canvas:nth-of-type(2) {
   .right {
     order: 0;
 
-    div.row label {
-      color: var(--memo-fg);
-      padding-left: 0;
-      width: 130px;
+    div.row {
+      height: auto;
+      min-height: 38px;
+      padding: 4px 0;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--memo-border);
+
+      label {
+        color: var(--memo-fg);
+        padding-left: 0;
+        width: auto;
+        flex: 0 0 auto;
+      }
+
+      select,
+      .btn-group {
+        width: auto;
+        flex: 0 1 190px;
+      }
+
+      // 녹화·스킬은 한 줄에 하나씩, 스위치는 오른쪽 끝
+      &.row-toggles {
+        display: block;
+        padding: 0;
+
+        .toggle-item {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          min-height: 38px;
+          padding: 4px 0;
+
+          & + .toggle-item {
+            border-top: 1px solid var(--memo-border);
+          }
+        }
+      }
+
+      &.row-theme {
+        border-bottom: none;
+        justify-content: flex-end;
+      }
     }
   }
 }
